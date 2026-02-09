@@ -1,0 +1,56 @@
+{
+  "name": "manage",
+  "version": "1.0.0",
+  "description": "全社業務管理システム - 顧客管理＆タスク管理",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:prod": "prisma migrate deploy",
+    "db:seed": "npx tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:setup-security": "psql $DATABASE_URL -f scripts/setup-db-security.sql",
+    "backup": "bash scripts/backup.sh",
+    "setup": "npm install && prisma generate && prisma db push && npx tsx prisma/seed.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:27761/git/KotaroTao/manage"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^7.3.0",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.2.2",
+    "@types/react": "^19.2.13",
+    "@types/react-dom": "^19.2.3",
+    "@types/uuid": "^10.0.0",
+    "autoprefixer": "^10.4.24",
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
+    "next": "^16.1.6",
+    "next-auth": "^5.0.0-beta.30",
+    "postcss": "^8.5.6",
+    "prisma": "^7.3.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}
