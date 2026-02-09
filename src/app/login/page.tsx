@@ -29,8 +29,10 @@ export default function LoginPage() {
         router.push("/");
         router.refresh();
       }
-    } catch {
-      setError("ログイン中にエラーが発生しました。もう一度お試しください。");
+    } catch (err) {
+      setError(
+        `ログインエラー: ${err instanceof Error ? err.message : JSON.stringify(err)}`,
+      );
     } finally {
       setLoading(false);
     }
