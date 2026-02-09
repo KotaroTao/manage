@@ -9,10 +9,11 @@
 ## 技術スタック
 - **フレームワーク**: Next.js 16 (App Router) + TypeScript
 - **ORM**: Prisma v6 + PostgreSQL 17
-- **認証**: NextAuth.js v5 (beta) JWT戦略
+- **認証**: カスタムJWT (jose) + httpOnly Cookie (`auth_token`)
 - **CSS**: Tailwind CSS v4 (@tailwindcss/postcss)
 - **プロセス管理**: PM2 cluster mode (ポート8888)
 - **Webサーバー**: Nginx (SSL/HTTPS, Let's Encrypt)
+- **デプロイ**: GitHub Actions (mainブランチpush → 自動デプロイ)
 
 ## 重要: Prisma v6 制約
 - Prisma v7 は `url` 設定の破壊的変更あり。v6を使うこと
@@ -28,6 +29,17 @@ npx prisma db push     # スキーマをDBに反映
 npx tsx prisma/seed.ts # シードデータ投入
 ```
 
+## デプロイ
+mainブランチにpushすれば GitHub Actions で自動デプロイされる。
+手動デプロイが必要な場合:
+```bash
+cd /var/www/manage
+git pull --rebase origin main
+npm ci && npx prisma generate && npx prisma db push --skip-generate
+npm run build
+pm2 restart manage
+```
+
 ## VPS デプロイ情報
 - アプリパス: `/var/www/manage`
 - ポート: **8888** (dental-appが3000を使用中のため)
@@ -36,13 +48,28 @@ npx tsx prisma/seed.ts # シードデータ投入
 - DB: `postgresql://manage_user:qkRcxuGYu7jQZ1hz442pEwYV8h0wLG@localhost:5432/manage_db`
 - SSL証明書: `/etc/letsencrypt/live/manage.tao-dx.com/` (2026-05-10期限)
 
-## VPSデプロイ手順
-```bash
-cd /var/www/manage
-git pull --rebase origin claude/customer-task-management-eA4Ls
-npm ci && npx prisma generate && npx prisma db push --skip-generate
-npm run build
-pm2 restart manage
+## 認証システム
+- **方式**: カスタムJWT (jose HS256) + httpOnly Cookie
+- **Cookie名**: `auth_token` (secure: 本番のみ, sameSite: lax, 有効期限: 7日)
+- **環境変数**: `JWT_SECRET`（フォールバック: `NEXTAUTH_SECRET`）
+- **API**: `/api/auth/login` (POST), `/api/auth/logout` (POST), `/api/auth/me` (GET)
+- **クライアント**: `useAuth()` フック (`src/contexts/auth-context.tsx`)
+- **サーバー**: `getSession()` / `getCurrentUser()` (`src/lib/auth.ts`, `src/lib/auth-helpers.ts`)
+- **ミドルウェア**: jose `jwtVerify` で直接検証 (`src/middleware.ts`)
+
+## API レスポンス規約
+**必ず守ること**: フロントエンドは `json.data` でデータにアクセスする
+```typescript
+// 一覧取得 (GET)
+return NextResponse.json({ data: items });
+// ページネーション付き
+return NextResponse.json({ data: items, pagination: { ... } });
+// 単体取得 (GET)
+return NextResponse.json({ data: item });
+// 作成 (POST)
+return NextResponse.json({ data: created }, { status: 201 });
+// エラー
+return NextResponse.json({ error: "メッセージ" }, { status: 4xx });
 ```
 
 ## データベース (24テーブル)
@@ -58,12 +85,14 @@ src/
   app/
     (dashboard)/     # 認証済みページ (レイアウト付き)
     login/           # ログインページ
-    api/             # 30 APIルート
+    api/             # APIルート
   components/
-    ui/              # 12 UIコンポーネント (button, input, modal等)
+    ui/              # UIコンポーネント (button, input, modal等)
     layout/          # sidebar, header, main-layout
+  contexts/
+    auth-context.tsx # AuthProvider, useAuth
   lib/
-    auth.ts          # NextAuth設定
+    auth.ts          # JWT生成・検証, getSession
     auth-helpers.ts  # getCurrentUser, requireAuth, requireRole
     audit.ts         # 監査ログ・データバージョニング
     security.ts      # レート制限, RBAC, ROLE_HIERARCHY
@@ -94,8 +123,9 @@ ADMIN > MANAGER > MEMBER > PARTNER
 - 不変監査ログ (PostgreSQLトリガーでUPDATE/DELETE禁止)
 - データバージョニング (全変更のスナップショット)
 - ソフトデリート (deletedAtカラム)
-- JWTで毎リクエストDB確認 (isActive チェック)
+- ミドルウェアでJWT検証 + isActiveチェック
 - ミドルウェアでセキュリティヘッダー付与
+- IPベースレート制限 (ログイン: 15分間30回)
 
 ## 既知の注意点
 - VPS上の他アプリ: dental-app(3000), mieru-clinic, zoom-backend, zoom-dashboard
