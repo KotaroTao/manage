@@ -1,0 +1,87 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Build check
+        run: npm run build
+        env:
+          DATABASE_URL: "postgresql://user:pass@localhost:5432/dummy"
+          NEXTAUTH_SECRET: "ci-build-check-secret"
+          NEXTAUTH_URL: "http://localhost:3000"
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            set -e
+            cd /var/www/manage
+
+            echo "=== Pull latest code ==="
+            git pull --rebase origin main
+
+            echo "=== Install dependencies ==="
+            npm ci
+
+            echo "=== Prisma generate & migrate ==="
+            npx prisma generate
+            npx prisma db push --skip-generate
+
+            echo "=== Build ==="
+            npm run build
+
+            echo "=== Restart PM2 ==="
+            pm2 restart manage || pm2 start deploy/ecosystem.config.js
+            pm2 save
+
+            echo "=== Deploy complete: $(date) ==="
+
+      - name: Health check
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            sleep 5
+            if curl -sf http://localhost:8888/login > /dev/null; then
+              echo "Health check OK"
+            else
+              echo "Health check FAILED"
+              exit 1
+            fi
