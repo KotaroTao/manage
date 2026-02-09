@@ -1,0 +1,698 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// LAYER 1: マスタ系
+// ============================================================
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(MEMBER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  assignedCustomerBusinesses CustomerBusiness[] @relation("AssigneeUser")
+  managedBusinesses          Business[]         @relation("ManagerUser")
+  createdSharedPages         SharedPage[]
+  createdShareLinks          ShareLink[]
+  activityLogs               ActivityLog[]
+  notifications              Notification[]
+  notificationSetting        NotificationSetting?
+  createdActivityNotes       ActivityNote[]
+  assignedWorkflowSteps      WorkflowStep[]     @relation("StepAssignee")
+  assignedTasks              Task[]             @relation("TaskAssignee")
+
+  @@index([email])
+  @@index([role, isActive])
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  MEMBER
+  PARTNER
+}
+
+model Business {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  description String?
+  managerId   String?
+  colorCode   String   @default("#3B82F6")
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  manager             User?              @relation("ManagerUser", fields: [managerId], references: [id])
+  customerBusinesses  CustomerBusiness[]
+  partnerBusinesses   PartnerBusiness[]
+  customFieldDefs     CustomFieldDef[]
+  workflowTemplates   WorkflowTemplate[]
+  tasks               Task[]
+
+  @@index([code])
+  @@index([isActive, sortOrder])
+}
+
+model Customer {
+  id             String   @id @default(uuid())
+  name           String
+  email          String?
+  phone          String?
+  company        String?
+  address        String?
+  postalCode     String?
+  representative String?
+  status         CustomerStatus @default(ACTIVE)
+  note           String?
+  deletedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  customerBusinesses CustomerBusiness[]
+  tags               EntityTag[]
+
+  @@index([name])
+  @@index([company])
+  @@index([status, deletedAt])
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Partner {
+  id                String   @id @default(uuid())
+  name              String
+  email             String?
+  phone             String?
+  company           String?
+  specialty         String?
+  bankName          String?
+  bankBranch        String?
+  bankAccountType   BankAccountType?
+  bankAccountNumber String?
+  bankAccountHolder String?
+  contractType      ContractType @default(MONTHLY)
+  rate              Int?
+  status            PartnerStatus @default(ACTIVE)
+  note              String?
+  userId            String?  @unique
+  deletedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  partnerBusinesses PartnerBusiness[]
+  payments          Payment[]
+
+  @@index([name])
+  @@index([status, deletedAt])
+}
+
+enum BankAccountType {
+  ORDINARY
+  CURRENT
+  SAVINGS
+}
+
+enum ContractType {
+  HOURLY
+  MONTHLY
+  PROJECT
+}
+
+enum PartnerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model PartnerBusiness {
+  id         String   @id @default(uuid())
+  partnerId  String
+  businessId String
+  role       String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  partner  Partner  @relation(fields: [partnerId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([partnerId, businessId])
+  @@index([businessId])
+}
+
+// ============================================================
+// LAYER 2: 顧客×事業 ★中心テーブル
+// ============================================================
+
+model CustomerBusiness {
+  id              String   @id @default(uuid())
+  customerId      String
+  businessId      String
+  status          CBStatus @default(ACTIVE)
+  nextActionDate  DateTime?
+  nextActionMemo  String?
+  assigneeId      String?
+  customFields    Json     @default("{}")
+  contractStartDate DateTime?
+  contractEndDate   DateTime?
+  monthlyFee      Int?
+  note            String?
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  customer       Customer       @relation(fields: [customerId], references: [id])
+  business       Business       @relation(fields: [businessId], references: [id])
+  assignee       User?          @relation("AssigneeUser", fields: [assigneeId], references: [id])
+  workflows      Workflow[]
+  tasks          Task[]
+  sharedPages    SharedPage[]
+  shareLinks     ShareLink[]
+  payments       Payment[]
+  activityNotes  ActivityNote[]
+  recurringRules RecurringRule[]
+
+  @@unique([customerId, businessId])
+  @@index([businessId, nextActionDate])
+  @@index([assigneeId, nextActionDate])
+  @@index([status, deletedAt])
+}
+
+enum CBStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+// ============================================================
+// LAYER 3: 業務フローテンプレート
+// ============================================================
+
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  businessId  String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business              @relation(fields: [businessId], references: [id])
+  steps    WorkflowStepTemplate[]
+  workflows Workflow[]
+  recurringRules RecurringRule[]
+
+  @@index([businessId, isActive])
+}
+
+model WorkflowStepTemplate {
+  id               String   @id @default(uuid())
+  templateId       String
+  title            String
+  description      String?
+  sortOrder        Int
+  daysFromStart    Int?
+  daysFromPrevious Int?
+  assigneeRole     String?
+  isRequired       Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  template WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  workflowSteps WorkflowStep[]
+
+  @@index([templateId, sortOrder])
+}
+
+// ============================================================
+// LAYER 4: 実行中フロー
+// ============================================================
+
+model Workflow {
+  id                   String         @id @default(uuid())
+  templateId           String
+  customerBusinessId   String
+  status               WorkflowStatus @default(ACTIVE)
+  startedAt            DateTime       @default(now())
+  completedAt          DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  template         WorkflowTemplate @relation(fields: [templateId], references: [id])
+  customerBusiness CustomerBusiness @relation(fields: [customerBusinessId], references: [id])
+  steps            WorkflowStep[]
+  payments         Payment[]
+
+  @@index([customerBusinessId, status])
+  @@index([status])
+}
+
+enum WorkflowStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model WorkflowStep {
+  id              String     @id @default(uuid())
+  workflowId      String
+  stepTemplateId  String?
+  title           String
+  description     String?
+  status          StepStatus @default(PENDING)
+  assigneeId      String
+  dueDate         DateTime
+  completedAt     DateTime?
+  sortOrder       Int
+  note            String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  workflow     Workflow              @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepTemplate WorkflowStepTemplate? @relation(fields: [stepTemplateId], references: [id])
+  assignee     User                  @relation("StepAssignee", fields: [assigneeId], references: [id])
+
+  @@index([assigneeId, status, dueDate])
+  @@index([workflowId, sortOrder])
+}
+
+enum StepStatus {
+  PENDING
+  WAITING
+  ACTIVE
+  DONE
+  SKIPPED
+}
+
+// ============================================================
+// LAYER 5: 単発タスク
+// ============================================================
+
+model Task {
+  id                 String     @id @default(uuid())
+  title              String
+  description        String?
+  customerBusinessId String?
+  businessId         String?
+  assigneeId         String
+  status             TaskStatus @default(ACTIVE)
+  priority           Priority   @default(MEDIUM)
+  dueDate            DateTime
+  completedAt        DateTime?
+  deletedAt          DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  customerBusiness CustomerBusiness? @relation(fields: [customerBusinessId], references: [id])
+  business         Business?         @relation(fields: [businessId], references: [id])
+  assignee         User              @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  tags             EntityTag[]
+
+  @@index([assigneeId, status, dueDate])
+  @@index([customerBusinessId])
+  @@index([status, deletedAt])
+}
+
+enum TaskStatus {
+  ACTIVE
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ============================================================
+// LAYER 6: 経理
+// ============================================================
+
+model Payment {
+  id                 String        @id @default(uuid())
+  partnerId          String
+  workflowId         String?
+  customerBusinessId String?
+  businessId         String?
+  amount             Int
+  tax                Int           @default(0)
+  totalAmount        Int
+  type               PaymentType   @default(SALARY)
+  status             PaymentStatus @default(DRAFT)
+  period             String?
+  dueDate            DateTime?
+  paidAt             DateTime?
+  note               String?
+  deletedAt          DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  partner          Partner           @relation(fields: [partnerId], references: [id])
+  workflow         Workflow?         @relation(fields: [workflowId], references: [id])
+  customerBusiness CustomerBusiness? @relation(fields: [customerBusinessId], references: [id])
+
+  @@index([partnerId, status])
+  @@index([status, dueDate])
+  @@index([period])
+}
+
+enum PaymentType {
+  SALARY
+  INVOICE
+  COMMISSION
+  BONUS
+}
+
+enum PaymentStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  PAID
+}
+
+// ============================================================
+// LAYER 7: 共有ポータル
+// ============================================================
+
+model SharedPage {
+  id                 String         @id @default(uuid())
+  customerBusinessId String
+  type               SharedPageType @default(MEETING_NOTE)
+  title              String
+  content            String         @default("")
+  attachments        Json           @default("[]")
+  isPublished        Boolean        @default(false)
+  publishedAt        DateTime?
+  createdById        String
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  customerBusiness CustomerBusiness   @relation(fields: [customerBusinessId], references: [id])
+  createdBy        User               @relation(fields: [createdById], references: [id])
+  shareLinks       ShareLink[]
+  comments         SharedPageComment[]
+
+  @@index([customerBusinessId, isPublished])
+}
+
+enum SharedPageType {
+  MEETING_NOTE
+  PROGRESS
+  REPORT
+  DOCUMENT
+  CUSTOM
+}
+
+model ShareLink {
+  id                 String   @id @default(uuid())
+  token              String   @unique @default(uuid())
+  sharedPageId       String?
+  customerBusinessId String
+  scope              ShareScope @default(SINGLE_PAGE)
+  passcode           String?
+  expiresAt          DateTime?
+  isActive           Boolean  @default(true)
+  lastAccessedAt     DateTime?
+  accessCount        Int      @default(0)
+  createdById        String
+  createdAt          DateTime @default(now())
+
+  sharedPage       SharedPage?       @relation(fields: [sharedPageId], references: [id])
+  customerBusiness CustomerBusiness  @relation(fields: [customerBusinessId], references: [id])
+  createdBy        User              @relation(fields: [createdById], references: [id])
+  accessLogs       ShareAccessLog[]
+
+  @@index([token])
+  @@index([customerBusinessId])
+}
+
+enum ShareScope {
+  SINGLE_PAGE
+  PORTAL
+}
+
+model ShareAccessLog {
+  id          String   @id @default(uuid())
+  shareLinkId String
+  ipAddress   String?
+  userAgent   String?
+  accessedAt  DateTime @default(now())
+
+  shareLink ShareLink @relation(fields: [shareLinkId], references: [id])
+
+  @@index([shareLinkId, accessedAt])
+}
+
+model SharedPageComment {
+  id           String   @id @default(uuid())
+  sharedPageId String
+  authorName   String
+  content      String
+  createdAt    DateTime @default(now())
+
+  sharedPage SharedPage @relation(fields: [sharedPageId], references: [id])
+
+  @@index([sharedPageId, createdAt])
+}
+
+// ============================================================
+// LAYER 8: 対応履歴
+// ============================================================
+
+model ActivityNote {
+  id                 String           @id @default(uuid())
+  customerBusinessId String
+  type               ActivityNoteType @default(MEMO)
+  title              String
+  content            String           @default("")
+  contactedAt        DateTime         @default(now())
+  createdById        String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  customerBusiness CustomerBusiness @relation(fields: [customerBusinessId], references: [id])
+  createdBy        User             @relation(fields: [createdById], references: [id])
+
+  @@index([customerBusinessId, contactedAt])
+}
+
+enum ActivityNoteType {
+  CALL
+  EMAIL
+  MEETING
+  VISIT
+  MEMO
+}
+
+// ============================================================
+// LAYER 9: タグ
+// ============================================================
+
+model Tag {
+  id        String      @id @default(uuid())
+  name      String
+  color     String      @default("#6B7280")
+  category  TagCategory @default(CUSTOMER)
+  createdAt DateTime    @default(now())
+
+  entityTags EntityTag[]
+
+  @@unique([name, category])
+  @@index([category])
+}
+
+enum TagCategory {
+  CUSTOMER
+  TASK
+  PROJECT
+}
+
+model EntityTag {
+  id         String @id @default(uuid())
+  tagId      String
+  entityType String
+  entityId   String
+
+  tag      Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [entityId], references: [id], map: "entity_tag_customer_fk")
+  task     Task?     @relation(fields: [entityId], references: [id], map: "entity_tag_task_fk")
+
+  @@unique([tagId, entityType, entityId])
+  @@index([entityType, entityId])
+}
+
+// ============================================================
+// LAYER 10: 繰り返しルール
+// ============================================================
+
+model RecurringRule {
+  id                 String          @id @default(uuid())
+  customerBusinessId String
+  templateId         String
+  frequency          Frequency       @default(MONTHLY)
+  intervalValue      Int             @default(1)
+  dayOfMonth         Int?
+  dayOfWeek          Int?
+  nextRunDate        DateTime
+  isActive           Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  customerBusiness CustomerBusiness @relation(fields: [customerBusinessId], references: [id])
+  template         WorkflowTemplate @relation(fields: [templateId], references: [id])
+
+  @@index([isActive, nextRunDate])
+}
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+// ============================================================
+// LAYER 11: カスタムフィールド定義
+// ============================================================
+
+model CustomFieldDef {
+  id         String    @id @default(uuid())
+  businessId String
+  entity     String    @default("customerBusiness")
+  fieldKey   String
+  fieldLabel String
+  fieldType  FieldType @default(TEXT)
+  options    Json      @default("[]")
+  isRequired Boolean   @default(false)
+  sortOrder  Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([businessId, fieldKey])
+  @@index([businessId, sortOrder])
+}
+
+enum FieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+  CHECKBOX
+  URL
+  TEXTAREA
+}
+
+// ============================================================
+// LAYER 12: セキュリティ・監査 ★データ保護
+// ============================================================
+
+// 不変監査ログ（UPDATE/DELETE不可の設計）
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entity     String
+  entityId   String
+  before     Json?
+  after      Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+// データバージョン履歴（重要テーブルの全変更を記録）
+model DataVersion {
+  id        String   @id @default(uuid())
+  entity    String
+  entityId  String
+  version   Int
+  data      Json
+  changedBy String?
+  changeType String
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId, version])
+  @@index([createdAt])
+}
+
+// 操作ログ（UIレベル）
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String?
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+}
+
+// ============================================================
+// LAYER 13: 通知
+// ============================================================
+
+model Notification {
+  id              String           @id @default(uuid())
+  userId          String
+  type            NotificationType
+  title           String
+  message         String
+  relatedEntity   String?
+  relatedEntityId String?
+  isRead          Boolean          @default(false)
+  readAt          DateTime?
+  createdAt       DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead, createdAt])
+}
+
+enum NotificationType {
+  DEADLINE_OVERDUE
+  DEADLINE_APPROACHING
+  WORKFLOW_STEP_ACTIVATED
+  PAYMENT_DUE
+  NEXT_ACTION_MISSING
+  SHARED_PAGE_COMMENT
+}
+
+model NotificationSetting {
+  id                  String  @id @default(uuid())
+  userId              String  @unique
+  alertDaysBefore     Int     @default(3)
+  emailNotification   Boolean @default(false)
+  showAllBusinesses   Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id])
+}
