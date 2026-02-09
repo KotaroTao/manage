@@ -52,8 +52,25 @@ export async function startWorkflow(
     );
   }
 
-  // Build the step data with calculated due dates
+  // Build the step data with calculated due dates.
+  // Pre-compute all due dates in a single forward pass (O(N)) to avoid
+  // the O(N^2) cost of recursively walking the chain for each step.
   const stepTemplates = template.steps;
+  const dueDates: Date[] = [];
+  for (let i = 0; i < stepTemplates.length; i++) {
+    const st = stepTemplates[i];
+    if (st.daysFromStart != null) {
+      // Absolute: days from the workflow start date
+      dueDates[i] = addDays(startDate, st.daysFromStart);
+    } else if (st.daysFromPrevious != null && i > 0) {
+      // Relative: days from the previous step's due date
+      dueDates[i] = addDays(dueDates[i - 1], st.daysFromPrevious);
+    } else {
+      // Default: same as start date
+      dueDates[i] = new Date(startDate);
+    }
+  }
+
   const stepsData = stepTemplates.map(
     (
       stepTemplate: {
@@ -65,31 +82,15 @@ export async function startWorkflow(
         daysFromPrevious: number | null;
       },
       index: number,
-    ) => {
-      let dueDate: Date;
-
-      if (stepTemplate.daysFromStart != null) {
-        // Absolute: days from the workflow start date
-        dueDate = addDays(startDate, stepTemplate.daysFromStart);
-      } else if (stepTemplate.daysFromPrevious != null && index > 0) {
-        // Relative: days from the previous step's due date
-        const prevDueDate = computeDueDate(stepTemplates, index - 1, startDate);
-        dueDate = addDays(prevDueDate, stepTemplate.daysFromPrevious);
-      } else {
-        // Default: same as start date
-        dueDate = new Date(startDate);
-      }
-
-      return {
-        stepTemplateId: stepTemplate.id,
-        title: stepTemplate.title,
-        description: stepTemplate.description,
-        sortOrder: stepTemplate.sortOrder,
-        assigneeId,
-        dueDate,
-        status: index === 0 ? ("ACTIVE" as const) : ("PENDING" as const),
-      };
-    },
+    ) => ({
+      stepTemplateId: stepTemplate.id,
+      title: stepTemplate.title,
+      description: stepTemplate.description,
+      sortOrder: stepTemplate.sortOrder,
+      assigneeId,
+      dueDate: dueDates[index],
+      status: index === 0 ? ("ACTIVE" as const) : ("PENDING" as const),
+    }),
   );
 
   // Create the workflow and all steps in a transaction
@@ -118,32 +119,6 @@ export async function startWorkflow(
 }
 
 /**
- * Helper: compute the due date for a step at a given index by walking
- * the chain of daysFromStart / daysFromPrevious values.
- */
-function computeDueDate(
-  steps: {
-    daysFromStart: number | null;
-    daysFromPrevious: number | null;
-  }[],
-  index: number,
-  startDate: Date,
-): Date {
-  const step = steps[index];
-
-  if (step.daysFromStart != null) {
-    return addDays(startDate, step.daysFromStart);
-  }
-
-  if (step.daysFromPrevious != null && index > 0) {
-    const prevDate = computeDueDate(steps, index - 1, startDate);
-    return addDays(prevDate, step.daysFromPrevious);
-  }
-
-  return new Date(startDate);
-}
-
-/**
  * Mark a workflow step as completed.
  *
  * 1. Validates the step exists and is in ACTIVE status.
@@ -155,33 +130,37 @@ function computeDueDate(
  */
 export async function completeStep(
   stepId: string,
+  // NOTE: userId is accepted for API compatibility and could be used
+  // for audit / version logging at the API layer.
   userId: string,
 ): Promise<WorkflowStep> {
-  const step = await prisma.workflowStep.findUnique({
-    where: { id: stepId },
-    include: {
-      workflow: true,
-    },
-  });
-
-  if (!step) {
-    throw new Error(`ワークフローステップが見つかりません: ${stepId}`);
-  }
-
-  if (step.status !== "ACTIVE") {
-    throw new Error(
-      `ステップがアクティブ状態ではないため完了できません (現在のステータス: ${step.status})`,
-    );
-  }
-
-  if (step.workflow.status !== "ACTIVE") {
-    throw new Error("ワークフローがアクティブ状態ではありません");
-  }
-
   const now = new Date();
 
-  // Complete the step and activate the next one in a transaction
+  // Complete the step and activate the next one in a transaction.
+  // All validation is performed inside the transaction to prevent
+  // TOCTOU race conditions.
   const completedStep = await prisma.$transaction(async (tx: TxClient) => {
+    const step = await tx.workflowStep.findUnique({
+      where: { id: stepId },
+      include: {
+        workflow: true,
+      },
+    });
+
+    if (!step) {
+      throw new Error(`ワークフローステップが見つかりません: ${stepId}`);
+    }
+
+    if (step.status !== "ACTIVE") {
+      throw new Error(
+        `ステップがアクティブ状態ではないため完了できません (現在のステータス: ${step.status})`,
+      );
+    }
+
+    if (step.workflow.status !== "ACTIVE") {
+      throw new Error("ワークフローがアクティブ状態ではありません");
+    }
+
     // Mark the current step as DONE
     const updated = await tx.workflowStep.update({
       where: { id: stepId },
@@ -280,22 +259,28 @@ async function activateNextStep(
  * @throws Error if the step is not found or already completed/skipped.
  */
 export async function skipStep(stepId: string): Promise<WorkflowStep> {
-  const step = await prisma.workflowStep.findUnique({
-    where: { id: stepId },
-    include: { workflow: true },
-  });
-
-  if (!step) {
-    throw new Error(`ワークフローステップが見つかりません: ${stepId}`);
-  }
-
-  if (step.status === "DONE" || step.status === "SKIPPED") {
-    throw new Error(`このステップは既に完了またはスキップ済みです`);
-  }
-
   const now = new Date();
 
+  // All validation is performed inside the transaction to prevent
+  // TOCTOU race conditions.
   const skippedStep = await prisma.$transaction(async (tx: TxClient) => {
+    const step = await tx.workflowStep.findUnique({
+      where: { id: stepId },
+      include: { workflow: true },
+    });
+
+    if (!step) {
+      throw new Error(`ワークフローステップが見つかりません: ${stepId}`);
+    }
+
+    if (step.status === "DONE" || step.status === "SKIPPED") {
+      throw new Error(`このステップは既に完了またはスキップ済みです`);
+    }
+
+    if (step.workflow.status !== "ACTIVE") {
+      throw new Error("ワークフローがアクティブ状態ではありません");
+    }
+
     const updated = await tx.workflowStep.update({
       where: { id: stepId },
       data: {
@@ -317,21 +302,23 @@ export async function skipStep(stepId: string): Promise<WorkflowStep> {
  * and marks the workflow as CANCELLED.
  */
 export async function cancelWorkflow(workflowId: string): Promise<Workflow> {
-  const workflow = await prisma.workflow.findUnique({
-    where: { id: workflowId },
-  });
-
-  if (!workflow) {
-    throw new Error(`ワークフローが見つかりません: ${workflowId}`);
-  }
-
-  if (workflow.status !== "ACTIVE") {
-    throw new Error("アクティブなワークフローのみキャンセルできます");
-  }
-
   const now = new Date();
 
+  // All validation is performed inside the transaction to prevent
+  // TOCTOU race conditions.
   const cancelled = await prisma.$transaction(async (tx: TxClient) => {
+    const workflow = await tx.workflow.findUnique({
+      where: { id: workflowId },
+    });
+
+    if (!workflow) {
+      throw new Error(`ワークフローが見つかりません: ${workflowId}`);
+    }
+
+    if (workflow.status !== "ACTIVE") {
+      throw new Error("アクティブなワークフローのみキャンセルできます");
+    }
+
     // Skip all non-completed steps
     await tx.workflowStep.updateMany({
       where: {

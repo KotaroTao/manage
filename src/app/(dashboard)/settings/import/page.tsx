@@ -36,13 +36,37 @@ export default function ImportPage() {
 
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
 
+  const parseCSVLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
   const parseCSV = (text: string) => {
     const lines = text.split("\n").filter((l) => l.trim());
     if (lines.length < 2) return;
-    const h = lines[0].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+    const h = parseCSVLine(lines[0]);
     setHeaders(h);
     const rows = lines.slice(1, 6).map((line) => {
-      const cells = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      const cells = parseCSVLine(line);
       const row: PreviewRow = {};
       h.forEach((header, i) => { row[header] = cells[i] || ""; });
       return row;
@@ -80,10 +104,10 @@ export default function ImportPage() {
     try {
       const text = await file.text();
       const lines = text.split("\n").filter((l) => l.trim());
-      const csvHeaders = lines[0].split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+      const csvHeaders = parseCSVLine(lines[0]);
 
       const records = lines.slice(1).map((line) => {
-        const cells = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+        const cells = parseCSVLine(line);
         const record: Record<string, string> = {};
         csvHeaders.forEach((h, i) => {
           const mappedField = columnMapping[h];

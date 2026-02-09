@@ -74,7 +74,13 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (role !== undefined) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
 
-    if (password && typeof password === "string" && password.length >= 8) {
+    if (password && typeof password === "string") {
+      if (password.length < 8) {
+        return NextResponse.json(
+          { error: "Password must be at least 8 characters" },
+          { status: 400 },
+        );
+      }
       updateData.passwordHash = await bcrypt.hash(password, 12);
     }
 

@@ -3,28 +3,22 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import type { SessionUser } from "@/types";
+import { ROLE_HIERARCHY } from "@/lib/security";
 
 const SALT_ROUNDS = 12;
 
 /**
- * Role hierarchy for access control.
- * Higher index = higher privilege.
- */
-const ROLE_LEVELS: Record<Role, number> = {
-  PARTNER: 0,
-  MEMBER: 1,
-  MANAGER: 2,
-  ADMIN: 3,
-};
-
-/**
  * Retrieve the currently authenticated user from the session.
- * Returns null if no valid session exists.
+ * Returns null if no valid session exists or user is deactivated.
  */
 export async function getCurrentUser(): Promise<SessionUser | null> {
   try {
     const session = await auth();
     if (!session?.user) {
+      return null;
+    }
+    // isActiveチェック: 無効化されたユーザーを拒否
+    if (session.user.isActive === false) {
       return null;
     }
     return session.user as SessionUser;
@@ -56,8 +50,8 @@ export async function requireAuth(): Promise<SessionUser> {
  */
 export async function requireRole(requiredRole: Role): Promise<SessionUser> {
   const user = await requireAuth();
-  const userLevel = ROLE_LEVELS[user.role] ?? -1;
-  const requiredLevel = ROLE_LEVELS[requiredRole] ?? 999;
+  const userLevel = ROLE_HIERARCHY[user.role] ?? -1;
+  const requiredLevel = ROLE_HIERARCHY[requiredRole] ?? 999;
 
   if (userLevel < requiredLevel) {
     throw new Error("権限が不足しています");

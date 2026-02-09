@@ -259,7 +259,7 @@ export default function FieldsSettingsPage() {
                     </td>
                   </tr>
                 ) : (
-                  fields.sort((a, b) => a.sortOrder - b.sortOrder).map((field) => (
+                  [...fields].sort((a, b) => a.sortOrder - b.sortOrder).map((field) => (
                     <tr key={field.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{field.fieldLabel}</td>
                       <td className="px-6 py-4 text-sm text-gray-700 font-mono">{field.fieldKey}</td>

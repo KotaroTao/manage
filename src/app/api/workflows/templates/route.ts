@@ -47,6 +47,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
+      return NextResponse.json({ error: "Forbidden: Manager role required" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, businessId, description, steps } = body;
 

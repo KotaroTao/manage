@@ -35,7 +35,20 @@ export async function GET(request: NextRequest) {
     const [partners, total] = await Promise.all([
       prisma.partner.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          company: true,
+          specialty: true,
+          contractType: true,
+          rate: true,
+          status: true,
+          note: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
           payments: {
             where: { deletedAt: null },
             select: {

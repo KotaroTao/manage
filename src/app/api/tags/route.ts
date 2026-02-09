@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (user.role !== "ADMIN" && user.role !== "MANAGER" && user.role !== "MEMBER") {
+      return NextResponse.json({ error: "Forbidden: Member role required" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, category, color } = body;
 
@@ -95,6 +99,10 @@ export async function DELETE(request: NextRequest) {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden: Admin only" }, { status: 403 });
     }
 
     const { searchParams } = request.nextUrl;

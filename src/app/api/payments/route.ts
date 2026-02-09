@@ -63,6 +63,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
+      return NextResponse.json({ error: "Forbidden: Manager role required" }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       partnerId,
@@ -87,6 +91,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "type is required" }, { status: 400 });
     }
 
+    const parsedAmount = parseInt(String(amount), 10);
+    if (isNaN(parsedAmount)) {
+      return NextResponse.json({ error: "amount must be a valid integer" }, { status: 400 });
+    }
+    const parsedTax = parseInt(String(tax ?? 0), 10);
+    if (isNaN(parsedTax)) {
+      return NextResponse.json({ error: "tax must be a valid integer" }, { status: 400 });
+    }
+
     // Verify partner exists
     const partner = await prisma.partner.findFirst({
       where: { id: partnerId, deletedAt: null },
@@ -96,8 +109,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Partner not found" }, { status: 404 });
     }
 
-    const taxAmount = tax ?? 0;
-    const totalAmount = amount + taxAmount;
+    const taxAmount = parsedTax;
+    const totalAmount = parsedAmount + taxAmount;
 
     const payment = await prisma.payment.create({
       data: {
@@ -105,7 +118,7 @@ export async function POST(request: NextRequest) {
         workflowId: workflowId || null,
         customerBusinessId: customerBusinessId || null,
         businessId: businessId || null,
-        amount,
+        amount: parsedAmount,
         tax: taxAmount,
         totalAmount,
         type,

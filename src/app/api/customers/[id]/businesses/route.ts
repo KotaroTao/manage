@@ -77,9 +77,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Check for duplicate
-    const existing = await prisma.customerBusiness.findUnique({
-      where: { customerId_businessId: { customerId: id, businessId } },
+    // Check for duplicate (only among non-soft-deleted records)
+    const existing = await prisma.customerBusiness.findFirst({
+      where: { customerId: id, businessId, deletedAt: null },
     });
 
     if (existing) {

@@ -53,10 +53,22 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const pageTitle = getPageTitle(pathname);
   const breadcrumbs = buildBreadcrumbs(pathname);
+
+  // Fetch unread notification count on mount
+  useEffect(() => {
+    fetch("/api/notifications?unreadOnly=true")
+      .then((res) => res.json())
+      .then((json) => {
+        const data = json.data ?? json;
+        setUnreadCount(Array.isArray(data) ? data.length : Number(data.count ?? 0));
+      })
+      .catch(() => {});
+  }, []);
 
   // Close user menu on outside click
   useEffect(() => {
@@ -131,9 +143,11 @@ export default function Header({ onMenuToggle }: HeaderProps) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
           </svg>
           {/* Unread badge */}
-          <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-            3
-          </span>
+          {unreadCount > 0 && (
+            <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+              {unreadCount}
+            </span>
+          )}
         </button>
 
         {/* User avatar dropdown */}

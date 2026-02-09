@@ -80,6 +80,14 @@ export async function PUT(request: NextRequest, context: RouteContext) {
           { status: 400 },
         );
       }
+
+      // Role checks for status transitions
+      if (status === "APPROVED" && user.role !== "ADMIN" && user.role !== "MANAGER") {
+        return NextResponse.json({ error: "Forbidden: Manager role required to approve payments" }, { status: 403 });
+      }
+      if (status === "PAID" && user.role !== "ADMIN") {
+        return NextResponse.json({ error: "Forbidden: Admin role required to mark payments as paid" }, { status: 403 });
+      }
     }
 
     const updateData: Record<string, unknown> = {};
@@ -143,6 +151,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
+      return NextResponse.json({ error: "Forbidden: Manager role required" }, { status: 403 });
     }
 
     const { id } = await context.params;

@@ -9,6 +9,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
+      return NextResponse.json({ error: "Forbidden: Manager role required" }, { status: 403 });
+    }
+
     const { searchParams } = request.nextUrl;
     const period = searchParams.get("period");
 

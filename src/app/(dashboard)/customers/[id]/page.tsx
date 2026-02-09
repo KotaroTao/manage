@@ -277,11 +277,11 @@ function AddBusinessModal({
 
   useEffect(() => {
     if (!open) return;
-    fetch('/api/businesses')
+    fetch('/api/businesses?pageSize=100')
       .then((r) => r.json())
       .then((json) => setBusinesses(json.data || []))
       .catch(() => {});
-    fetch('/api/users')
+    fetch('/api/settings/users')
       .then((r) => r.json())
       .then((json) => setUsers(json.data || []))
       .catch(() => {});

@@ -331,7 +331,7 @@ function OverviewTab({
             )}
           </div>
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {fieldDefs
+            {[...fieldDefs]
               .sort((a, b) => a.sortOrder - b.sortOrder)
               .map((def) => (
                 <div key={def.id}>
@@ -573,7 +573,7 @@ function WorkflowsTab({
               </div>
               <div className="p-5">
                 <div className="space-y-3">
-                  {wf.steps
+                  {[...wf.steps]
                     .sort((a, b) => a.sortOrder - b.sortOrder)
                     .map((step) => (
                       <div key={step.id} className="flex items-start gap-3">
@@ -671,7 +671,7 @@ function TasksTab({
           assigneeId: form.assigneeId,
           dueDate: form.dueDate,
           priority: form.priority,
-          status: 'TODO',
+          status: 'ACTIVE',
         }),
       });
       if (!res.ok) throw new Error('タスクの追加に失敗しました');
@@ -1234,7 +1234,7 @@ export default function CustomerBusinessDetailPage() {
     try {
       const [detailRes, usersRes] = await Promise.all([
         fetch(`/api/customers/${customerId}/businesses/${cbId}`),
-        fetch('/api/users'),
+        fetch('/api/settings/users'),
       ]);
       if (!detailRes.ok) throw new Error('データの取得に失敗しました');
       const detailJson = await detailRes.json();

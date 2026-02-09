@@ -12,6 +12,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden: Admin only" }, { status: 403 });
+    }
+
     const { id } = await context.params;
 
     const existing = await prisma.customFieldDef.findUnique({

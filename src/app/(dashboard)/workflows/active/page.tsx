@@ -229,7 +229,7 @@ export default function ActiveWorkflowsPage() {
                           <tr>
                             <td colSpan={6} className="px-6 py-4 bg-gray-50 border-t border-gray-100">
                               <div className="space-y-2">
-                                {wf.steps
+                                {[...wf.steps]
                                   .sort((a, b) => a.sortOrder - b.sortOrder)
                                   .map((step) => (
                                     <div

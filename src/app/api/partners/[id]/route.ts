@@ -34,6 +34,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Partner not found" }, { status: 404 });
     }
 
+    // Exclude bank fields unless user is ADMIN or MANAGER
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
+      const { bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder, ...safePartner } = partner;
+      return NextResponse.json(safePartner);
+    }
+
     return NextResponse.json(partner);
   } catch (error) {
     console.error("Partner GET error:", error);

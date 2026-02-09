@@ -35,9 +35,10 @@ declare module "@auth/core/jwt" {
 }
 
 const nextAuth = NextAuth({
+  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 hours
+    maxAge: 24 * 60 * 60,
   },
   pages: {
     signIn: "/login",
@@ -62,11 +63,7 @@ const nextAuth = NextAuth({
           where: { email },
         });
 
-        if (!user) {
-          return null;
-        }
-
-        if (!user.isActive) {
+        if (!user || !user.isActive) {
           return null;
         }
 
@@ -90,13 +87,23 @@ const nextAuth = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id as string;
-        token.email = user.email as string;
-        token.name = user.name as string;
-        token.role = user.role;
-        token.isActive = user.isActive;
+    async jwt({ token }) {
+      // 毎回DBからユーザー情報を再取得（無効化されたユーザーを即座に検知）
+      if (token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id },
+          select: { id: true, email: true, name: true, role: true, isActive: true },
+        });
+        if (!dbUser || !dbUser.isActive) {
+          // ユーザーが無効化された場合、トークンを無効化
+          token.isActive = false;
+          return token;
+        }
+        token.id = dbUser.id;
+        token.email = dbUser.email;
+        token.name = dbUser.name;
+        token.role = dbUser.role;
+        token.isActive = dbUser.isActive;
       }
       return token;
     },
@@ -112,7 +119,7 @@ const nextAuth = NextAuth({
       return session;
     },
     async authorized({ auth: session }) {
-      return !!session?.user;
+      return !!session?.user && session.user.isActive !== false;
     },
   },
 });
@@ -121,7 +128,4 @@ export const auth = nextAuth.auth;
 export const signIn = nextAuth.signIn;
 export const signOut = nextAuth.signOut;
 export const handlers = nextAuth.handlers;
-
-// Re-export GET/POST for use in route handlers:
-// export { GET, POST } from "@/lib/auth"
 export const { GET, POST } = nextAuth.handlers;

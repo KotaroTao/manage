@@ -132,9 +132,17 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
+    const now = new Date();
+
     const deleted = await prisma.customer.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: now },
+    });
+
+    // Cascade soft-delete to related CustomerBusiness records
+    await prisma.customerBusiness.updateMany({
+      where: { customerId: id, deletedAt: null },
+      data: { deletedAt: now },
     });
 
     await writeAuditLog({

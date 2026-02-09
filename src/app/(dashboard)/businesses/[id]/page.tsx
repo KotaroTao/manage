@@ -487,7 +487,7 @@ export default function BusinessDetailPage() {
                       </td>
                     </tr>
                   ) : (
-                    fieldDefs
+                    [...fieldDefs]
                       .sort((a, b) => a.sortOrder - b.sortOrder)
                       .map((def) => (
                         <tr key={def.id} className="hover:bg-gray-50">

@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/toast';
 
 interface TemplateStep {
   id?: string;
+  _tempId?: string;
   sortOrder: number;
   title: string;
   description: string;
@@ -101,6 +102,7 @@ export default function TemplateEditorPage() {
     setSteps([
       ...steps,
       {
+        _tempId: `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         sortOrder: steps.length + 1,
         title: '',
         description: '',
@@ -255,7 +257,7 @@ export default function TemplateEditorPage() {
           <CardBody>
             <div className="flex items-center gap-2 overflow-x-auto py-2">
               {steps.map((step, i) => (
-                <React.Fragment key={i}>
+                <React.Fragment key={step.id || step._tempId || i}>
                   <div className="flex-shrink-0 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-center min-w-[120px]">
                     <p className="text-xs text-blue-500 mb-0.5">ステップ {step.sortOrder}</p>
                     <p className="text-sm font-medium text-blue-800 truncate max-w-[150px]">
@@ -295,7 +297,7 @@ export default function TemplateEditorPage() {
             <div className="space-y-4">
               {steps.map((step, index) => (
                 <div
-                  key={index}
+                  key={step.id || step._tempId || index}
                   className="border border-gray-200 rounded-lg p-4 bg-gray-50"
                 >
                   <div className="flex items-center justify-between mb-3">

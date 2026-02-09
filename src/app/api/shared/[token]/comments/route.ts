@@ -20,6 +20,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Share link has expired" }, { status: 403 });
     }
 
+    // Validate passcode if required
+    if (shareLink.passcode) {
+      const providedPasscode = request.headers.get("x-passcode");
+      if (!providedPasscode || providedPasscode !== shareLink.passcode) {
+        return NextResponse.json({ error: "Invalid or missing passcode" }, { status: 401 });
+      }
+    }
+
     if (!shareLink.sharedPageId) {
       return NextResponse.json({ error: "No page associated with this link" }, { status: 404 });
     }
@@ -56,6 +64,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Share link has expired" }, { status: 403 });
     }
 
+    // Validate passcode if required
+    if (shareLink.passcode) {
+      const providedPasscode = request.headers.get("x-passcode");
+      if (!providedPasscode || providedPasscode !== shareLink.passcode) {
+        return NextResponse.json({ error: "Invalid or missing passcode" }, { status: 401 });
+      }
+    }
+
     if (!shareLink.sharedPageId) {
       return NextResponse.json(
         { error: "No page associated with this link" },
@@ -80,9 +96,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Simple rate limiting by IP
+    // Simple rate limiting by IP-based key (count all recent comments on this page
+    // rather than filtering by authorName which is easily spoofed)
     const clientIp =
-      request.headers.get("x-forwarded-for") ||
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       request.headers.get("x-real-ip") ||
       "unknown";
 
@@ -90,7 +107,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const recentComments = await prisma.sharedPageComment.count({
       where: {
         sharedPageId: shareLink.sharedPageId,
-        authorName: authorName.trim(),
         createdAt: { gte: oneMinuteAgo },
       },
     });
