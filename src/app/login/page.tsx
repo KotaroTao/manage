@@ -1,62 +1,16 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useActionState } from "react";
+import { login } from "./actions";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      // 1. CSRFトークン取得
-      const csrfRes = await fetch("/api/auth/csrf", {
-        credentials: "include",
-      });
-      const { csrfToken } = await csrfRes.json();
-
-      // 2. 認証リクエスト（Cookie確実に保存するためcredentials: include）
-      const res = await fetch("/api/auth/callback/credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          email,
-          password,
-          csrfToken,
-        }),
-        credentials: "include",
-        redirect: "manual",
-      });
-
-      // 3. 302リダイレクト = 成功（Set-Cookieはブラウザが自動処理）
-      if (res.type === "opaqueredirect" || res.status === 302 || res.status === 0) {
-        window.location.href = "/";
-        return;
-      }
-
-      // 4. 200で返った場合はエラーをチェック
-      if (res.ok) {
-        const url = new URL(res.url);
-        if (url.searchParams.has("error")) {
-          setError("メールアドレスまたはパスワードが正しくありません。");
-        } else {
-          window.location.href = "/";
-          return;
-        }
-      } else {
-        setError("メールアドレスまたはパスワードが正しくありません。");
-      }
-    } catch {
-      setError("ログイン中にエラーが発生しました。もう一度お試しください。");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [state, formAction, isPending] = useActionState(
+    async (_prevState: { error: string } | null, formData: FormData) => {
+      const result = await login(formData);
+      return result ?? null;
+    },
+    null,
+  );
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -74,14 +28,14 @@ export default function LoginPage() {
 
         {/* Login card */}
         <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form action={formAction} className="space-y-5">
             {/* Error message */}
-            {error && (
+            {state?.error && (
               <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                {error}
+                {state.error}
               </div>
             )}
 
@@ -95,9 +49,8 @@ export default function LoginPage() {
               </label>
               <input
                 id="email"
+                name="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
                 placeholder="mail@example.com"
@@ -115,9 +68,8 @@ export default function LoginPage() {
               </label>
               <input
                 id="password"
+                name="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
                 placeholder="パスワードを入力"
@@ -128,10 +80,10 @@ export default function LoginPage() {
             {/* Login button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={isPending}
               className="flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? (
+              {isPending ? (
                 <>
                   <svg
                     className="-ml-1 mr-2 h-4 w-4 animate-spin"
