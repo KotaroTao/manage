@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Payment not found" }, { status: 404 });
     }
 
-    return NextResponse.json(payment);
+    return NextResponse.json({ data: payment });
   } catch (error) {
     console.error("Payment GET error:", error);
     return NextResponse.json(
@@ -136,7 +136,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       changeType: "UPDATE",
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("Payment PUT error:", error);
     return NextResponse.json(

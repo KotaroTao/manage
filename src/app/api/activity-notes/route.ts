@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       orderBy: { contactedAt: "desc" },
     });
 
-    return NextResponse.json(notes);
+    return NextResponse.json({ data: notes });
   } catch (error) {
     console.error("ActivityNotes GET error:", error);
     return NextResponse.json(
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       changeType: "CREATE",
     });
 
-    return NextResponse.json(note, { status: 201 });
+    return NextResponse.json({ data: note }, { status: 201 });
   } catch (error) {
     console.error("ActivityNote POST error:", error);
     return NextResponse.json(

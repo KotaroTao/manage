@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       changeType: "CREATE",
     });
 
-    return NextResponse.json(business, { status: 201 });
+    return NextResponse.json({ data: business }, { status: 201 });
   } catch (error) {
     console.error("Business POST error:", error);
     return NextResponse.json(

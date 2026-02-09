@@ -37,7 +37,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(comments);
+    return NextResponse.json({ data: comments });
   } catch (error) {
     console.error("Shared comments GET error:", error);
     return NextResponse.json(
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json(comment, { status: 201 });
+    return NextResponse.json({ data: comment }, { status: 201 });
   } catch (error) {
     console.error("Shared comment POST error:", error);
     return NextResponse.json(

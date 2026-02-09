@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
       changeType: "CREATE",
     });
 
-    return NextResponse.json(task, { status: 201 });
+    return NextResponse.json({ data: task }, { status: 201 });
   } catch (error) {
     console.error("Task POST error:", error);
     return NextResponse.json(

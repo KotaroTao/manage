@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    return NextResponse.json(customer);
+    return NextResponse.json({ data: customer });
   } catch (error) {
     console.error("Customer GET error:", error);
     return NextResponse.json(
@@ -105,7 +105,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       changeType: "UPDATE",
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("Customer PUT error:", error);
     return NextResponse.json(

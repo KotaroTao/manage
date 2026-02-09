@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       changeType: "CREATE",
     });
 
-    return NextResponse.json(field, { status: 201 });
+    return NextResponse.json({ data: field }, { status: 201 });
   } catch (error) {
     console.error("CustomFieldDef POST error:", error);
     return NextResponse.json(

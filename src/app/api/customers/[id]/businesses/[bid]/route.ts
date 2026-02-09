@@ -54,7 +54,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    return NextResponse.json(customerBusiness);
+    return NextResponse.json({ data: customerBusiness });
   } catch (error) {
     console.error("CustomerBusiness GET error:", error);
     return NextResponse.json(
@@ -136,7 +136,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       changeType: "UPDATE",
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("CustomerBusiness PUT error:", error);
     return NextResponse.json(

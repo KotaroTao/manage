@@ -151,7 +151,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       });
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ data: result });
   } catch (error) {
     console.error("WorkflowTemplate PUT error:", error);
     return NextResponse.json(
