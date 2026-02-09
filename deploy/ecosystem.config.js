@@ -9,7 +9,7 @@ module.exports = {
       exec_mode: "cluster",
       env: {
         NODE_ENV: "production",
-        PORT: 3000,
+        PORT: 8888,
       },
       max_memory_restart: "500M",
       log_date_format: "YYYY-MM-DD HH:mm:ss Z",

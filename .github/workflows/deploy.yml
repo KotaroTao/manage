@@ -65,4 +65,4 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             sleep 5
-            curl -sf http://localhost:3000/login > /dev/null && echo "Health check OK" || echo "Health check FAILED"
+            curl -sf http://localhost:8888/login > /dev/null && echo "Health check OK" || echo "Health check FAILED"
