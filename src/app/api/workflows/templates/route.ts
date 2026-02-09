@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ businessId: "asc" }, { name: "asc" }],
     });
 
-    return NextResponse.json(templates);
+    return NextResponse.json({ data: templates });
   } catch (error) {
     console.error("WorkflowTemplates GET error:", error);
     return NextResponse.json(
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       changeType: "CREATE",
     });
 
-    return NextResponse.json(template, { status: 201 });
+    return NextResponse.json({ data: template }, { status: 201 });
   } catch (error) {
     console.error("WorkflowTemplate POST error:", error);
     return NextResponse.json(

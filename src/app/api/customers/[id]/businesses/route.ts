@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(customerBusinesses);
+    return NextResponse.json({ data: customerBusinesses });
   } catch (error) {
     console.error("CustomerBusinesses GET error:", error);
     return NextResponse.json(

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
     });
 
-    return NextResponse.json(users);
+    return NextResponse.json({ data: users });
   } catch (error) {
     console.error("Users GET error:", error);
     return NextResponse.json(

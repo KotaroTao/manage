@@ -1,13 +1,10 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { signIn } from "next-auth/react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -16,22 +13,31 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
     try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
       });
 
-      if (result?.error) {
-        setError("メールアドレスまたはパスワードが正しくありません。");
-      } else {
-        router.push("/");
-        router.refresh();
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "ログインに失敗しました。");
+        setLoading(false);
+        return;
       }
+
+      // Login successful - redirect to dashboard
+      router.push("/");
+      router.refresh();
     } catch {
-      setError("ログイン中にエラーが発生しました。もう一度お試しください。");
-    } finally {
+      setError("通信エラーが発生しました。");
       setLoading(false);
     }
   }
@@ -73,9 +79,8 @@ export default function LoginPage() {
               </label>
               <input
                 id="email"
+                name="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
                 placeholder="mail@example.com"
@@ -93,9 +98,8 @@ export default function LoginPage() {
               </label>
               <input
                 id="password"
+                name="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
                 placeholder="パスワードを入力"

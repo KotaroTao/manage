@@ -1,131 +1,79 @@
-import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
-import prisma from "@/lib/prisma";
+import { SignJWT, jwtVerify } from "jose";
+import { cookies } from "next/headers";
 import type { Role } from "@prisma/client";
+import type { SessionUser } from "@/types";
 
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      email: string;
-      name: string;
-      role: Role;
-      isActive: boolean;
-    };
-  }
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
+);
 
-  interface User {
-    id: string;
-    email: string;
-    name: string;
-    role: Role;
-    isActive: boolean;
+const COOKIE_NAME = "auth_token";
+const MAX_AGE = 7 * 24 * 60 * 60; // 7 days
+
+export interface JWTPayload {
+  userId: string;
+  email: string;
+  name: string;
+  role: Role;
+  isActive: boolean;
+}
+
+/**
+ * Create a signed JWT token.
+ */
+export async function createToken(payload: JWTPayload): Promise<string> {
+  return new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${MAX_AGE}s`)
+    .sign(JWT_SECRET);
+}
+
+/**
+ * Verify and decode a JWT token.
+ */
+export async function verifyToken(token: string): Promise<JWTPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload as unknown as JWTPayload;
+  } catch {
+    return null;
   }
 }
 
-declare module "@auth/core/jwt" {
-  interface JWT {
-    id: string;
-    email: string;
-    name: string;
-    role: Role;
-    isActive: boolean;
-  }
+/**
+ * Get the current session from cookies (server-side).
+ * Returns SessionUser or null.
+ */
+export async function getSession(): Promise<SessionUser | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value;
+  if (!token) return null;
+
+  const payload = await verifyToken(token);
+  if (!payload || !payload.isActive) return null;
+
+  return {
+    id: payload.userId,
+    email: payload.email,
+    name: payload.name,
+    role: payload.role,
+    isActive: payload.isActive,
+  };
 }
 
-const nextAuth = NextAuth({
-  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
-  session: {
-    strategy: "jwt",
-    maxAge: 24 * 60 * 60,
-  },
-  pages: {
-    signIn: "/login",
-    error: "/login",
-  },
-  providers: [
-    Credentials({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+/**
+ * Cookie options for auth_token.
+ */
+export function getAuthCookieOptions(maxAge: number = MAX_AGE) {
+  return {
+    name: COOKIE_NAME,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge,
+  };
+}
 
-        const email = credentials.email as string;
-        const password = credentials.password as string;
-
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
-
-        if (!user || !user.isActive) {
-          return null;
-        }
-
-        const isPasswordValid = await bcrypt.compare(
-          password,
-          user.passwordHash,
-        );
-
-        if (!isPasswordValid) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isActive: user.isActive,
-        };
-      },
-    }),
-  ],
-  callbacks: {
-    async jwt({ token }) {
-      // 毎回DBからユーザー情報を再取得（無効化されたユーザーを即座に検知）
-      if (token.id) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id },
-          select: { id: true, email: true, name: true, role: true, isActive: true },
-        });
-        if (!dbUser || !dbUser.isActive) {
-          // ユーザーが無効化された場合、トークンを無効化
-          token.isActive = false;
-          return token;
-        }
-        token.id = dbUser.id;
-        token.email = dbUser.email;
-        token.name = dbUser.name;
-        token.role = dbUser.role;
-        token.isActive = dbUser.isActive;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      session.user = {
-        ...session.user,
-        id: token.id,
-        email: token.email,
-        name: token.name,
-        role: token.role,
-        isActive: token.isActive,
-      };
-      return session;
-    },
-    async authorized({ auth: session }) {
-      return !!session?.user && session.user.isActive !== false;
-    },
-  },
-});
-
-export const auth = nextAuth.auth;
-export const signIn = nextAuth.signIn;
-export const signOut = nextAuth.signOut;
-export const handlers = nextAuth.handlers;
-export const { GET, POST } = nextAuth.handlers;
+export { COOKIE_NAME, MAX_AGE };

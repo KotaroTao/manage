@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -103,15 +103,11 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { user, logout } = useAuth();
 
   function isActive(href: string): boolean {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
-  }
-
-  async function handleLogout() {
-    await signOut({ callbackUrl: "/login" });
   }
 
   return (
@@ -168,19 +164,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="border-t border-slate-700/50 p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
-              {session?.user?.name?.charAt(0) ?? "U"}
+              {user?.name?.charAt(0) ?? "U"}
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-white">
-                {session?.user?.name ?? "ユーザー"}
+                {user?.name ?? "ユーザー"}
               </p>
               <p className="truncate text-xs text-slate-400">
-                {session?.user?.email ?? ""}
+                {user?.email ?? ""}
               </p>
             </div>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={logout}
             className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

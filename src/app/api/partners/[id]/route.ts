@@ -37,10 +37,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // Exclude bank fields unless user is ADMIN or MANAGER
     if (user.role !== "ADMIN" && user.role !== "MANAGER") {
       const { bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder, ...safePartner } = partner;
-      return NextResponse.json(safePartner);
+      return NextResponse.json({ data: safePartner });
     }
 
-    return NextResponse.json(partner);
+    return NextResponse.json({ data: partner });
   } catch (error) {
     console.error("Partner GET error:", error);
     return NextResponse.json(
