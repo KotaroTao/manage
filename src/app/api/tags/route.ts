@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ category: "asc" }, { name: "asc" }],
     });
 
-    return NextResponse.json(tags);
+    return NextResponse.json({ data: tags });
   } catch (error) {
     console.error("Tags GET error:", error);
     return NextResponse.json(
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       request,
     });
 
-    return NextResponse.json(tag, { status: 201 });
+    return NextResponse.json({ data: tag }, { status: 201 });
   } catch (error) {
     console.error("Tag POST error:", error);
     return NextResponse.json(

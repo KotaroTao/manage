@@ -37,7 +37,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json(targetUser);
+    return NextResponse.json({ data: targetUser });
   } catch (error) {
     console.error("User GET error:", error);
     return NextResponse.json(
@@ -128,7 +128,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       changeType: "UPDATE",
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("User PUT error:", error);
     return NextResponse.json(

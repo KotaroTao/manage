@@ -123,7 +123,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       changeType: "CREATE",
     });
 
-    return NextResponse.json(customerBusiness, { status: 201 });
+    return NextResponse.json({ data: customerBusiness }, { status: 201 });
   } catch (error) {
     console.error("CustomerBusiness POST error:", error);
     return NextResponse.json(

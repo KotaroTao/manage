@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
       changeType: "CREATE",
     });
 
-    return NextResponse.json(workflow, { status: 201 });
+    return NextResponse.json({ data: workflow }, { status: 201 });
   } catch (error) {
     console.error("Workflow POST error:", error);
     return NextResponse.json(

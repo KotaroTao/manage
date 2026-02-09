@@ -123,7 +123,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       changeType: "UPDATE",
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("Partner PUT error:", error);
     return NextResponse.json(

@@ -117,7 +117,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json(data);
+    return NextResponse.json({ data });
   } catch (error) {
     console.error("Shared page GET error:", error);
     return NextResponse.json(

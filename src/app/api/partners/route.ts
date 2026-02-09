@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
       changeType: "CREATE",
     });
 
-    return NextResponse.json(partner, { status: 201 });
+    return NextResponse.json({ data: partner }, { status: 201 });
   } catch (error) {
     console.error("Partner POST error:", error);
     return NextResponse.json(

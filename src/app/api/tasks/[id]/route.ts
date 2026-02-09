@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    return NextResponse.json(task);
+    return NextResponse.json({ data: task });
   } catch (error) {
     console.error("Task GET error:", error);
     return NextResponse.json(
@@ -102,7 +102,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       changeType: "UPDATE",
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("Task PUT error:", error);
     return NextResponse.json(

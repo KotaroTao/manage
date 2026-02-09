@@ -118,7 +118,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       request,
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("WorkflowStep PUT error:", error);
     return NextResponse.json(

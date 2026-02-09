@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       changeType: "CREATE",
     });
 
-    return NextResponse.json(newUser, { status: 201 });
+    return NextResponse.json({ data: newUser }, { status: 201 });
   } catch (error) {
     console.error("User POST error:", error);
     return NextResponse.json(
