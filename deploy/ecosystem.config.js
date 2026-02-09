@@ -4,7 +4,7 @@ module.exports = {
       name: "manage",
       script: "node_modules/.bin/next",
       args: "start",
-      cwd: "/home/deploy/manage",
+      cwd: "/var/www/manage",
       instances: 2,
       exec_mode: "cluster",
       env: {

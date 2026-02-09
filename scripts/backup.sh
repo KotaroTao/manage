@@ -8,7 +8,7 @@ set -euo pipefail
 
 # 設定
 DB_NAME="${DB_NAME:-manage_db}"
-DB_USER="${DB_USER:-user}"
+DB_USER="${DB_USER:-manage_user}"
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/manage}"
