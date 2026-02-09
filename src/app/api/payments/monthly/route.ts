@@ -103,8 +103,8 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json({
+      data: Object.values(grouped),
       period,
-      partners: Object.values(grouped),
       grandTotal,
     });
   } catch (error) {

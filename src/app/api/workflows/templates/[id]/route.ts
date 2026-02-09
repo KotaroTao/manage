@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    return NextResponse.json(template);
+    return NextResponse.json({ data: template });
   } catch (error) {
     console.error("WorkflowTemplate GET error:", error);
     return NextResponse.json(

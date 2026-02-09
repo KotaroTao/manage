@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ businessId: "asc" }, { sortOrder: "asc" }],
     });
 
-    return NextResponse.json(fields);
+    return NextResponse.json({ data: fields });
   } catch (error) {
     console.error("CustomFieldDefs GET error:", error);
     return NextResponse.json(

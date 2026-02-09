@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       }),
     );
 
-    return NextResponse.json(businessesWithStats);
+    return NextResponse.json({ data: businessesWithStats });
   } catch (error) {
     console.error("Businesses GET error:", error);
     return NextResponse.json(
