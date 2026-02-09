@@ -132,18 +132,20 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       action: "UPDATE",
       entity: "WorkflowTemplate",
       entityId: id,
-      before: existing,
-      after: result,
+      before: existing as unknown as Record<string, unknown>,
+      after: result as unknown as Record<string, unknown> | null,
       request,
     });
 
-    await createDataVersion({
-      entity: "WorkflowTemplate",
-      entityId: id,
-      data: result,
-      changedBy: user.id,
-      changeType: "UPDATE",
-    });
+    if (result) {
+      await createDataVersion({
+        entity: "WorkflowTemplate",
+        entityId: id,
+        data: result as unknown as Record<string, unknown>,
+        changedBy: user.id,
+        changeType: "UPDATE",
+      });
+    }
 
     return NextResponse.json(result);
   } catch (error) {
