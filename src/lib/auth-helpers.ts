@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
@@ -13,15 +13,10 @@ const SALT_ROUNDS = 12;
  */
 export async function getCurrentUser(): Promise<SessionUser | null> {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return null;
-    }
-    // isActiveチェック: 無効化されたユーザーを拒否
-    if (session.user.isActive === false) {
-      return null;
-    }
-    return session.user as SessionUser;
+    const session = await getSession();
+    if (!session) return null;
+    if (session.isActive === false) return null;
+    return session;
   } catch {
     return null;
   }

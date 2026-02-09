@@ -1,16 +1,46 @@
 "use client";
 
-import { useActionState } from "react";
-import { login } from "./actions";
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const [state, formAction, isPending] = useActionState(
-    async (_prevState: { error: string } | null, formData: FormData) => {
-      const result = await login(formData);
-      return result ?? null;
-    },
-    null,
-  );
+  const router = useRouter();
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "ログインに失敗しました。");
+        setLoading(false);
+        return;
+      }
+
+      // Login successful - redirect to dashboard
+      router.push("/");
+      router.refresh();
+    } catch {
+      setError("通信エラーが発生しました。");
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -28,14 +58,14 @@ export default function LoginPage() {
 
         {/* Login card */}
         <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-          <form action={formAction} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* Error message */}
-            {state?.error && (
+            {error && (
               <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
                 </svg>
-                {state.error}
+                {error}
               </div>
             )}
 
@@ -80,10 +110,10 @@ export default function LoginPage() {
             {/* Login button */}
             <button
               type="submit"
-              disabled={isPending}
+              disabled={loading}
               className="flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isPending ? (
+              {loading ? (
                 <>
                   <svg
                     className="-ml-1 mr-2 h-4 w-4 animate-spin"
