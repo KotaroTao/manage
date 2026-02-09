@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,13 +14,46 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signIn("credentials", {
-        email,
-        password,
-        redirectTo: "/",
+      // 1. CSRFトークン取得
+      const csrfRes = await fetch("/api/auth/csrf", {
+        credentials: "include",
       });
+      const { csrfToken } = await csrfRes.json();
+
+      // 2. 認証リクエスト（Cookie確実に保存するためcredentials: include）
+      const res = await fetch("/api/auth/callback/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          email,
+          password,
+          csrfToken,
+        }),
+        credentials: "include",
+        redirect: "manual",
+      });
+
+      // 3. 302リダイレクト = 成功（Set-Cookieはブラウザが自動処理）
+      if (res.type === "opaqueredirect" || res.status === 302 || res.status === 0) {
+        window.location.href = "/";
+        return;
+      }
+
+      // 4. 200で返った場合はエラーをチェック
+      if (res.ok) {
+        const url = new URL(res.url);
+        if (url.searchParams.has("error")) {
+          setError("メールアドレスまたはパスワードが正しくありません。");
+        } else {
+          window.location.href = "/";
+          return;
+        }
+      } else {
+        setError("メールアドレスまたはパスワードが正しくありません。");
+      }
     } catch {
-      setError("メールアドレスまたはパスワードが正しくありません。");
+      setError("ログイン中にエラーが発生しました。もう一度お試しください。");
+    } finally {
       setLoading(false);
     }
   }
