@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/card';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatCurrency, formatDate, getApiError } from '@/lib/utils';
+import { formatCurrency, formatDate, formatRelativeDate, getApiError } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
 
 interface Payment {
@@ -86,6 +86,7 @@ export default function PaymentsPage() {
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [newPayment, setNewPayment] = useState({
     partnerId: '',
     amount: 0,
@@ -197,12 +198,13 @@ export default function PaymentsPage() {
     }
   };
 
-  const handleDelete = async (paymentId: string) => {
-    if (!confirm('この支払いを削除しますか？')) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      const res = await fetch(`/api/payments/${paymentId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/payments/${deleteTarget}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await getApiError(res, '削除に失敗しました'));
       showToast('支払いを削除しました', 'success');
+      setDeleteTarget(null);
       fetchPayments();
     } catch (err) {
       showToast(err instanceof Error ? err.message : '削除に失敗しました', 'error');
@@ -229,7 +231,7 @@ export default function PaymentsPage() {
               申請
             </button>
             <button
-              onClick={() => handleDelete(payment.id)}
+              onClick={() => setDeleteTarget(payment.id)}
               className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100"
             >
               削除
@@ -318,6 +320,17 @@ export default function PaymentsPage() {
             onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
           />
         </div>
+        {(filterPartner || filterStatus || filterPeriod || filterType) && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => { setFilterPartner(''); setFilterStatus(''); setFilterPeriod(''); setFilterType(''); setPage(1); }}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              フィルターをリセット
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error */}
@@ -342,7 +355,7 @@ export default function PaymentsPage() {
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden md:table-cell">種別</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">期間</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">ステータス</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">支払日</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">期限/支払日</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">操作</th>
                 </tr>
               </thead>
@@ -371,8 +384,17 @@ export default function PaymentsPage() {
                           {STATUS_LABELS[payment.status] || payment.status}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 hidden lg:table-cell">
-                        {payment.paidAt ? formatDate(payment.paidAt) : '-'}
+                      <td className="px-4 py-3 text-sm hidden lg:table-cell">
+                        {payment.paidAt ? (
+                          <span className="text-green-600">{formatDate(payment.paidAt)}</span>
+                        ) : payment.dueDate ? (
+                          <span className={payment.status !== 'PAID' && new Date(payment.dueDate) < new Date() ? 'text-red-600 font-medium' : 'text-gray-700'}>
+                            {formatDate(payment.dueDate)}
+                            {payment.status !== 'PAID' && formatRelativeDate(payment.dueDate) && (
+                              <span className="text-xs ml-1">({formatRelativeDate(payment.dueDate)})</span>
+                            )}
+                          </span>
+                        ) : '-'}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {renderActions(payment)}
@@ -516,6 +538,18 @@ export default function PaymentsPage() {
           />
         </div>
       </Modal>
+
+      {/* Delete Confirm Modal */}
+      <ConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="支払いの削除"
+        message="この支払いを削除しますか？この操作は取り消せません。"
+        confirmLabel="削除する"
+        cancelLabel="キャンセル"
+        variant="danger"
+      />
     </div>
   );
 }

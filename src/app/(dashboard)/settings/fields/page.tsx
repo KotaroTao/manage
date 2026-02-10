@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
 import { getApiError } from '@/lib/utils';
 
@@ -64,6 +64,7 @@ export default function FieldsSettingsPage() {
     isRequired: false,
   });
   const [saving, setSaving] = useState(false);
+  const [deleteFieldTarget, setDeleteFieldTarget] = useState<string | null>(null);
 
   const fetchBusinesses = useCallback(async () => {
     try {
@@ -181,12 +182,13 @@ export default function FieldsSettingsPage() {
     }
   };
 
-  const handleDelete = async (fieldId: string) => {
-    if (!confirm('このフィールドを削除しますか？')) return;
+  const handleDeleteConfirm = async () => {
+    if (!deleteFieldTarget) return;
     try {
-      const res = await fetch(`/api/settings/fields/${fieldId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/settings/fields/${deleteFieldTarget}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await getApiError(res, '削除に失敗しました'));
       showToast('フィールドを削除しました', 'success');
+      setDeleteFieldTarget(null);
       fetchFields();
     } catch (err) {
       showToast(err instanceof Error ? err.message : '削除に失敗しました', 'error');
@@ -286,7 +288,7 @@ export default function FieldsSettingsPage() {
                             編集
                           </button>
                           <button
-                            onClick={() => handleDelete(field.id)}
+                            onClick={() => setDeleteFieldTarget(field.id)}
                             className="text-xs px-2 py-1 text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100"
                           >
                             削除
@@ -421,6 +423,18 @@ export default function FieldsSettingsPage() {
           </label>
         </div>
       </Modal>
+
+      {/* Delete Confirm Modal */}
+      <ConfirmModal
+        open={!!deleteFieldTarget}
+        onClose={() => setDeleteFieldTarget(null)}
+        onConfirm={handleDeleteConfirm}
+        title="フィールドの削除"
+        message="このフィールドを削除しますか？"
+        confirmLabel="削除"
+        cancelLabel="キャンセル"
+        variant="danger"
+      />
     </div>
   );
 }

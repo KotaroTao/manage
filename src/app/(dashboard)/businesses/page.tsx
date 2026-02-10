@@ -71,6 +71,8 @@ export default function BusinessesPage() {
     managerId: '',
     colorCode: '#3B82F6',
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterActive, setFilterActive] = useState('');
 
   const fetchBusinesses = useCallback(async () => {
     setLoading(true);
@@ -103,6 +105,13 @@ export default function BusinessesPage() {
     fetchBusinesses();
     fetchUsers();
   }, [fetchBusinesses, fetchUsers]);
+
+  const filteredBusinesses = businesses.filter((biz) => {
+    if (searchQuery && !biz.name.toLowerCase().includes(searchQuery.toLowerCase()) && !biz.code.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (filterActive === 'active' && !biz.isActive) return false;
+    if (filterActive === 'inactive' && biz.isActive) return false;
+    return true;
+  });
 
   const handleCreate = async () => {
     if (!form.name || !form.code) {
@@ -156,16 +165,53 @@ export default function BusinessesPage() {
         </div>
       )}
 
+      {/* Search & Filter */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Input
+            placeholder="事業名・コードで検索"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Select
+            options={[
+              { label: 'すべてのステータス', value: '' },
+              { label: '有効', value: 'active' },
+              { label: '無効', value: 'inactive' },
+            ]}
+            value={filterActive}
+            onChange={(e) => setFilterActive(e.target.value)}
+          />
+          {(searchQuery || filterActive) && (
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => { setSearchQuery(''); setFilterActive(''); }}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                リセット
+              </button>
+              <span className="ml-3 text-sm text-gray-500">{filteredBusinesses.length}件</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Card Grid */}
       {loading ? (
         <CardSkeleton />
       ) : businesses.length === 0 ? (
+        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
+          <p className="text-sm text-gray-400 mb-4">事業が登録されていません</p>
+          <Button onClick={() => setShowCreate(true)}>+ 最初の事業を作成</Button>
+        </div>
+      ) : filteredBusinesses.length === 0 ? (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center text-sm text-gray-400">
-          事業が登録されていません
+          条件に一致する事業はありません
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {businesses.map((biz) => (
+          {filteredBusinesses.map((biz) => (
             <Link
               key={biz.id}
               href={`/businesses/${biz.id}`}

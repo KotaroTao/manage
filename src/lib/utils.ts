@@ -117,6 +117,33 @@ export function truncate(str: string, maxLength: number): string {
 }
 
 /**
+ * Format a date as a relative string (e.g., "3日後", "2日前", "今日").
+ * Returns null if the date is invalid or more than 30 days away.
+ */
+export function formatRelativeDate(
+  date: Date | string | null | undefined,
+): string | null {
+  if (!date) return null;
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(d.getTime())) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(d);
+  target.setHours(0, 0, 0, 0);
+
+  const diffMs = target.getTime() - today.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (Math.abs(diffDays) > 30) return null;
+  if (diffDays === 0) return "今日";
+  if (diffDays === 1) return "明日";
+  if (diffDays === -1) return "昨日";
+  if (diffDays > 0) return `${diffDays}日後`;
+  return `${Math.abs(diffDays)}日前`;
+}
+
+/**
  * Extract an error message from a failed fetch Response.
  * Reads the JSON body's `error` field, falling back to a generic message with status code.
  */

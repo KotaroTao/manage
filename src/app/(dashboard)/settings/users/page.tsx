@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
 import { formatDate, getApiError } from '@/lib/utils';
 import type { UserFormData } from '@/types';
@@ -60,6 +60,7 @@ export default function UsersSettingsPage() {
     isActive: true,
   });
   const [saving, setSaving] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -135,16 +136,17 @@ export default function UsersSettingsPage() {
     }
   };
 
-  const handleDeactivate = async (userId: string) => {
-    if (!confirm('このユーザーを無効化しますか？')) return;
+  const handleDeactivateConfirm = async () => {
+    if (!deactivateTarget) return;
     try {
-      const res = await fetch(`/api/settings/users/${userId}`, {
+      const res = await fetch(`/api/settings/users/${deactivateTarget}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: false }),
       });
       if (!res.ok) throw new Error(await getApiError(res, '無効化に失敗しました'));
       showToast('ユーザーを無効化しました', 'success');
+      setDeactivateTarget(null);
       fetchUsers();
     } catch (err) {
       showToast(err instanceof Error ? err.message : '無効化に失敗しました', 'error');
@@ -230,7 +232,7 @@ export default function UsersSettingsPage() {
                           </button>
                           {user.isActive && (
                             <button
-                              onClick={() => handleDeactivate(user.id)}
+                              onClick={() => setDeactivateTarget(user.id)}
                               className="text-xs px-2 py-1 text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100"
                             >
                               無効化
@@ -348,6 +350,18 @@ export default function UsersSettingsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Deactivate Confirm Modal */}
+      <ConfirmModal
+        open={!!deactivateTarget}
+        onClose={() => setDeactivateTarget(null)}
+        onConfirm={handleDeactivateConfirm}
+        title="ユーザーの無効化"
+        message="このユーザーを無効化しますか？"
+        confirmLabel="無効化"
+        cancelLabel="キャンセル"
+        variant="danger"
+      />
     </div>
   );
 }
