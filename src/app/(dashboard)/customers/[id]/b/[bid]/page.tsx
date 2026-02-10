@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { formatDate, formatDateTime, formatCurrency, isOverdue, cn, getApiError } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmModal } from '@/components/ui/modal';
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                      */
@@ -646,6 +647,7 @@ function TasksTab({
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [deleteTaskTarget, setDeleteTaskTarget] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -700,13 +702,14 @@ function TasksTab({
     }
   };
 
-  const handleDelete = async (taskId: string) => {
-    if (!confirm('このタスクを削除しますか？')) return;
-    setActionId(taskId);
+  const handleDeleteConfirm = async () => {
+    if (!deleteTaskTarget) return;
+    setActionId(deleteTaskTarget);
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/tasks/${deleteTaskTarget}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await getApiError(res, '削除に失敗しました'));
       showToast('タスクを削除しました', 'success');
+      setDeleteTaskTarget(null);
       onUpdate();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'エラーが発生しました', 'error');
@@ -814,7 +817,7 @@ function TasksTab({
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(task.id)}
+                      onClick={() => setDeleteTaskTarget(task.id)}
                       disabled={actionId === task.id}
                       className="text-xs px-2 py-1 font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
                     >
@@ -827,6 +830,18 @@ function TasksTab({
           })}
         </div>
       )}
+
+      {/* Delete Task Confirm Modal */}
+      <ConfirmModal
+        open={!!deleteTaskTarget}
+        onClose={() => setDeleteTaskTarget(null)}
+        onConfirm={handleDeleteConfirm}
+        title="タスクの削除"
+        message="このタスクを削除しますか？"
+        confirmLabel="削除"
+        cancelLabel="キャンセル"
+        variant="danger"
+      />
     </div>
   );
 }

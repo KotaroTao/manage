@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
 import { formatDate, formatCurrency, isOverdue, cn } from '@/lib/utils';
 
@@ -129,6 +129,7 @@ export default function BusinessDetailPage() {
   });
   const [savingField, setSavingField] = useState(false);
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  const [deleteFieldTarget, setDeleteFieldTarget] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -232,12 +233,13 @@ export default function BusinessDetailPage() {
     }
   };
 
-  const handleDeleteField = async (fieldId: string) => {
-    if (!confirm('このフィールドを削除しますか？')) return;
+  const handleDeleteFieldConfirm = async () => {
+    if (!deleteFieldTarget) return;
     try {
-      const res = await fetch(`/api/settings/fields/${fieldId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/settings/fields/${deleteFieldTarget}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('削除に失敗しました');
       showToast('フィールドを削除しました', 'success');
+      setDeleteFieldTarget(null);
       fetchAll();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'エラーが発生しました', 'error');
@@ -516,7 +518,7 @@ export default function BusinessDetailPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleDeleteField(def.id)}
+                                onClick={() => setDeleteFieldTarget(def.id)}
                                 className="text-xs px-2 py-1 text-red-600 hover:text-red-800 font-medium"
                               >
                                 削除
@@ -654,6 +656,18 @@ export default function BusinessDetailPage() {
           )}
         </div>
       </Modal>
+
+      {/* Delete Field Confirm Modal */}
+      <ConfirmModal
+        open={!!deleteFieldTarget}
+        onClose={() => setDeleteFieldTarget(null)}
+        onConfirm={handleDeleteFieldConfirm}
+        title="フィールドの削除"
+        message="このフィールドを削除しますか？"
+        confirmLabel="削除"
+        cancelLabel="キャンセル"
+        variant="danger"
+      />
     </div>
   );
 }

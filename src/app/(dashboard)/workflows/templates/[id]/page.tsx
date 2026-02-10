@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Card, CardHeader, CardBody } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
+import { ConfirmModal } from '@/components/ui/modal';
 import { getApiError } from '@/lib/utils';
 
 interface TemplateStep {
@@ -43,6 +44,7 @@ export default function TemplateEditorPage() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [businesses, setBusinesses] = useState<BusinessOption[]>([]);
 
   // Template state
@@ -165,8 +167,7 @@ export default function TemplateEditorPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm('このテンプレートを無効化しますか？')) return;
+  const handleDeleteConfirm = async () => {
     try {
       const res = await fetch(`/api/workflows/templates/${templateId}`, {
         method: 'PUT',
@@ -175,6 +176,7 @@ export default function TemplateEditorPage() {
       });
       if (!res.ok) throw new Error(await getApiError(res, '無効化に失敗しました'));
       showToast('テンプレートを無効化しました', 'success');
+      setShowDeleteConfirm(false);
       router.push('/workflows/templates');
     } catch (err) {
       showToast(err instanceof Error ? err.message : '無効化に失敗しました', 'error');
@@ -220,7 +222,7 @@ export default function TemplateEditorPage() {
         </div>
         <div className="flex gap-2">
           {!isNew && (
-            <Button variant="danger" onClick={handleDelete}>テンプレート削除</Button>
+            <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>テンプレート削除</Button>
           )}
           <Button onClick={handleSave} loading={saving}>保存</Button>
         </div>
@@ -389,6 +391,18 @@ export default function TemplateEditorPage() {
           )}
         </CardBody>
       </Card>
+
+      {/* Delete Confirm Modal */}
+      <ConfirmModal
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteConfirm}
+        title="テンプレートの無効化"
+        message="このテンプレートを無効化しますか？"
+        confirmLabel="無効化"
+        cancelLabel="キャンセル"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -6,7 +6,8 @@ import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatDate, isOverdue, isApproaching, getApiError } from '@/lib/utils';
+import { formatDate, formatRelativeDate, isOverdue, isApproaching, getApiError } from '@/lib/utils';
+import { useAuth } from '@/contexts/auth-context';
 import type { PaginatedResponse } from '@/types';
 
 /* -------------------------------------------------------------------------- */
@@ -78,6 +79,7 @@ const KANBAN_COLUMNS = [
 
 export default function TasksPage() {
   const { showToast } = useToast();
+  const { user: currentUser } = useAuth();
 
   // View mode
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -317,6 +319,49 @@ export default function TasksPage() {
 
       {/* Filters bar */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
+        {/* Quick filters */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => { setFilterAssignee(currentUser?.id || ''); setFilterStatus(''); setFilterPriority(''); setFilterDateFrom(''); setFilterDateTo(''); setSearchTitle(''); setPage(1); }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+              filterAssignee === currentUser?.id && !filterStatus ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            自分のタスク
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const t = new Date(); t.setHours(0,0,0,0);
+              const todayStr = t.toISOString().split('T')[0];
+              setFilterDateFrom(todayStr); setFilterDateTo(todayStr); setFilterAssignee(''); setFilterStatus(''); setFilterPriority(''); setSearchTitle(''); setPage(1);
+            }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+              filterDateFrom === filterDateTo && filterDateFrom && !filterStatus ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            今日が期限
+          </button>
+          <button
+            type="button"
+            onClick={() => { setFilterStatus('ACTIVE'); setFilterAssignee(''); setFilterPriority(''); setFilterDateFrom(''); setFilterDateTo(''); setSearchTitle(''); setPage(1); }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+              filterStatus === 'ACTIVE' && !filterAssignee ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            対応中
+          </button>
+          <button
+            type="button"
+            onClick={() => { setFilterPriority('URGENT'); setFilterAssignee(''); setFilterStatus(''); setFilterDateFrom(''); setFilterDateTo(''); setSearchTitle(''); setPage(1); }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+              filterPriority === 'URGENT' && !filterAssignee ? 'bg-red-100 text-red-700 border-red-300' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            緊急
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3">
           <Input
             placeholder="タイトル検索"
@@ -369,6 +414,17 @@ export default function TasksPage() {
             placeholder="終了日"
           />
         </div>
+        {(searchTitle || filterAssignee || filterBusiness || filterStatus || filterPriority || filterDateFrom || filterDateTo) && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => { setSearchTitle(''); setFilterAssignee(''); setFilterBusiness(''); setFilterStatus(''); setFilterPriority(''); setFilterDateFrom(''); setFilterDateTo(''); setPage(1); }}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              フィルターをリセット
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Error state */}
@@ -433,8 +489,13 @@ export default function TasksPage() {
                                 {task.business?.name || task.customerBusiness?.business.name || '-'}
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-700">{task.assignee.name}</td>
-                              <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-                                {formatDate(task.dueDate)}
+                              <td className="px-4 py-3 text-sm whitespace-nowrap">
+                                <span className={overdue ? 'text-red-600 font-medium' : approaching ? 'text-amber-600' : 'text-gray-700'}>
+                                  {formatDate(task.dueDate)}
+                                  {task.status !== 'DONE' && formatRelativeDate(task.dueDate) && (
+                                    <span className="text-xs ml-1">({formatRelativeDate(task.dueDate)})</span>
+                                  )}
+                                </span>
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <Badge variant={PRIORITY_VARIANTS[task.priority] || 'gray'} size="sm">
@@ -590,7 +651,7 @@ export default function TasksPage() {
                           </div>
                           <div className="flex items-center justify-between">
                             <span className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                              {formatDate(task.dueDate)}
+                              {formatRelativeDate(task.dueDate) || formatDate(task.dueDate)}
                             </span>
                             {/* Status move buttons */}
                             <div className="flex gap-1">

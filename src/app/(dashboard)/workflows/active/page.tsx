@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -175,8 +176,11 @@ export default function ActiveWorkflowsPage() {
               <tbody className="divide-y divide-gray-200">
                 {workflows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-16 text-center text-sm text-gray-500">
-                      進行中のワークフローはありません
+                    <td colSpan={6} className="px-6 py-16 text-center">
+                      <p className="text-sm text-gray-500 mb-3">進行中のワークフローはありません</p>
+                      <Link href="/workflows/templates" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                        テンプレートからワークフローを開始 →
+                      </Link>
                     </td>
                   </tr>
                 ) : (
