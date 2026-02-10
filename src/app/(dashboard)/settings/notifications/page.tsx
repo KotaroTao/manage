@@ -15,8 +15,9 @@ export default function NotificationSettingsPage() {
   useEffect(() => {
     fetch("/api/notifications?settings=true")
       .then((r) => r.json())
-      .then((data) => {
-        if (data.alertDaysBefore !== undefined) setSettings(data);
+      .then((json) => {
+        const s = json.data || json;
+        if (s.alertDaysBefore !== undefined) setSettings(s);
       })
       .catch(() => {})
       .finally(() => setLoading(false));

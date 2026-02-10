@@ -10,6 +10,21 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = request.nextUrl;
+
+    // 通知設定の取得
+    if (searchParams.get("settings") === "true") {
+      const setting = await prisma.notificationSetting.findUnique({
+        where: { userId: user.id },
+      });
+      return NextResponse.json({
+        data: setting || {
+          alertDaysBefore: 3,
+          emailNotification: false,
+          showAllBusinesses: false,
+        },
+      });
+    }
+
     const unreadOnly = searchParams.get("unreadOnly") === "true";
 
     const where: Record<string, unknown> = { userId: user.id };
@@ -48,7 +63,26 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { ids, markAllRead } = body;
+    const { ids, markAllRead, updateSettings, alertDaysBefore, emailNotification, showAllBusinesses } = body;
+
+    // 通知設定の更新
+    if (updateSettings) {
+      const setting = await prisma.notificationSetting.upsert({
+        where: { userId: user.id },
+        update: {
+          ...(alertDaysBefore !== undefined && { alertDaysBefore: Number(alertDaysBefore) }),
+          ...(emailNotification !== undefined && { emailNotification: Boolean(emailNotification) }),
+          ...(showAllBusinesses !== undefined && { showAllBusinesses: Boolean(showAllBusinesses) }),
+        },
+        create: {
+          userId: user.id,
+          alertDaysBefore: Number(alertDaysBefore) || 3,
+          emailNotification: Boolean(emailNotification),
+          showAllBusinesses: Boolean(showAllBusinesses),
+        },
+      });
+      return NextResponse.json({ data: setting });
+    }
 
     const now = new Date();
 
@@ -58,7 +92,7 @@ export async function PUT(request: NextRequest) {
         data: { isRead: true, readAt: now },
       });
 
-      return NextResponse.json({ message: "All notifications marked as read" });
+      return NextResponse.json({ data: null, message: "All notifications marked as read" });
     }
 
     if (ids && Array.isArray(ids) && ids.length > 0) {
@@ -70,7 +104,7 @@ export async function PUT(request: NextRequest) {
         data: { isRead: true, readAt: now },
       });
 
-      return NextResponse.json({ message: "Notifications marked as read", count: ids.length });
+      return NextResponse.json({ data: null, message: "Notifications marked as read", count: ids.length });
     }
 
     return NextResponse.json(

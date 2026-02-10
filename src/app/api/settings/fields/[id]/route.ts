@@ -109,7 +109,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       request,
     });
 
-    return NextResponse.json({ message: "Custom field definition deleted", id });
+    return NextResponse.json({ data: null, message: "Custom field definition deleted" });
   } catch (error) {
     console.error("CustomFieldDef DELETE error:", error);
     return NextResponse.json(

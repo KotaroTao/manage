@@ -180,7 +180,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       request,
     });
 
-    return NextResponse.json({ message: "CustomerBusiness deleted", id: bid });
+    return NextResponse.json({ data: null, message: "CustomerBusiness deleted" });
   } catch (error) {
     console.error("CustomerBusiness DELETE error:", error);
     return NextResponse.json(

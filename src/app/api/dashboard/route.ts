@@ -195,14 +195,16 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      overdueTasks: [...overdueSteps.map((s) => ({ ...s, type: "workflow_step" })), ...overdueTasks.map((t) => ({ ...t, type: "task" }))],
-      approachingTasks: [...approachingSteps.map((s) => ({ ...s, type: "workflow_step" })), ...approachingTasksList.map((t) => ({ ...t, type: "task" }))],
-      missingNextAction,
-      todayActions,
-      businessSummary,
-      paymentSummary: {
-        pendingCount: pendingPayments._count,
-        pendingTotal: pendingPayments._sum.totalAmount ?? 0,
+      data: {
+        overdueTasks: [...overdueSteps.map((s) => ({ ...s, type: "workflow_step" })), ...overdueTasks.map((t) => ({ ...t, type: "task" }))],
+        approachingTasks: [...approachingSteps.map((s) => ({ ...s, type: "workflow_step" })), ...approachingTasksList.map((t) => ({ ...t, type: "task" }))],
+        missingNextAction,
+        todayActions,
+        businessSummary,
+        paymentSummary: {
+          pendingCount: pendingPayments._count,
+          pendingTotal: pendingPayments._sum.totalAmount ?? 0,
+        },
       },
     });
   } catch (error) {

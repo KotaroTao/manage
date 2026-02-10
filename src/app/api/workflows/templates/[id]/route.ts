@@ -200,7 +200,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       request,
     });
 
-    return NextResponse.json({ message: "Workflow template deactivated", id });
+    return NextResponse.json({ data: null, message: "Workflow template deactivated" });
   } catch (error) {
     console.error("WorkflowTemplate DELETE error:", error);
     return NextResponse.json(
