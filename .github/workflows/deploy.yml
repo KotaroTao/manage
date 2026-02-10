@@ -50,6 +50,9 @@ jobs:
             set -e
             cd /var/www/manage
 
+            echo "=== Stash local changes ==="
+            git stash --include-untracked || true
+
             echo "=== Pull latest code ==="
             git pull --rebase origin main
 
