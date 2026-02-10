@@ -15,13 +15,14 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || undefined;
     const businessId = searchParams.get("businessId") || undefined;
     const priority = searchParams.get("priority") || undefined;
-    const dateFrom = searchParams.get("dateFrom") || undefined;
-    const dateTo = searchParams.get("dateTo") || undefined;
+    const query = searchParams.get("query") || undefined;
+    const dateFrom = searchParams.get("dueDateFrom") || searchParams.get("dateFrom") || undefined;
+    const dateTo = searchParams.get("dueDateTo") || searchParams.get("dateTo") || undefined;
     const sortBy = searchParams.get("sortBy") || "dueDate";
     const sortOrder = searchParams.get("sortOrder") === "desc" ? "desc" : "asc";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("perPage") || "20", 10)));
-    const skip = (page - 1) * perPage;
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || searchParams.get("perPage") || "20", 10)));
+    const skip = (page - 1) * pageSize;
 
     // Build Task filter
     const taskWhere: Record<string, unknown> = { deletedAt: null };
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
     if (status) taskWhere.status = status;
     if (businessId) taskWhere.businessId = businessId;
     if (priority) taskWhere.priority = priority;
+    if (query) taskWhere.title = { contains: query, mode: "insensitive" };
     if (dateFrom || dateTo) {
       taskWhere.dueDate = {};
       if (dateFrom) (taskWhere.dueDate as Record<string, unknown>).gte = new Date(dateFrom);
@@ -38,6 +40,7 @@ export async function GET(request: NextRequest) {
     // Build WorkflowStep filter
     const stepWhere: Record<string, unknown> = {};
     if (assigneeId) stepWhere.assigneeId = assigneeId;
+    if (query) stepWhere.title = { contains: query, mode: "insensitive" };
     if (status) {
       // Map task statuses to step statuses
       if (status === "ACTIVE") stepWhere.status = "ACTIVE";
@@ -92,36 +95,47 @@ export async function GET(request: NextRequest) {
       prisma.workflowStep.count({ where: stepWhere }),
     ]);
 
-    // Unify format
+    // Unify format — return nested objects matching frontend TaskItem interface
     const unifiedTasks = tasks.map((t) => ({
       id: t.id,
-      type: "task" as const,
+      type: "TASK" as const,
       title: t.title,
-      customerName: t.customerBusiness?.customer?.name || null,
-      businessName: t.customerBusiness?.business?.name || t.business?.name || null,
-      assigneeName: t.assignee.name,
-      assigneeId: t.assignee.id,
+      description: null,
       status: t.status,
-      dueDate: t.dueDate,
       priority: t.priority,
+      dueDate: t.dueDate,
       completedAt: t.completedAt,
       createdAt: t.createdAt,
+      assignee: { id: t.assignee.id, name: t.assignee.name },
+      business: t.business ? { id: (t as Record<string, unknown>).businessId as string, name: t.business.name, colorCode: "" } : null,
+      customerBusiness: t.customerBusiness
+        ? {
+            id: (t as Record<string, unknown>).customerBusinessId as string,
+            customer: { id: "", name: t.customerBusiness.customer?.name || "", company: null },
+            business: { id: "", name: t.customerBusiness.business?.name || "" },
+          }
+        : null,
     }));
 
     const unifiedSteps = workflowSteps.map((s) => ({
       id: s.id,
-      type: "workflow_step" as const,
+      type: "WORKFLOW_STEP" as const,
       title: s.title,
-      customerName: s.workflow.customerBusiness?.customer?.name || null,
-      businessName: s.workflow.customerBusiness?.business?.name || null,
-      assigneeName: s.assignee.name,
-      assigneeId: s.assignee.id,
+      description: null,
       status: s.status,
+      priority: "MEDIUM",
       dueDate: s.dueDate,
-      priority: null,
       completedAt: s.completedAt,
-      workflowName: s.workflow.template?.name || null,
       createdAt: s.createdAt,
+      assignee: { id: s.assignee.id, name: s.assignee.name },
+      business: null,
+      customerBusiness: s.workflow.customerBusiness
+        ? {
+            id: s.workflow.customerBusiness.id || "",
+            customer: { id: "", name: s.workflow.customerBusiness.customer?.name || "", company: null },
+            business: { id: "", name: s.workflow.customerBusiness.business?.name || "" },
+          }
+        : null,
     }));
 
     // Merge and sort
@@ -131,16 +145,19 @@ export async function GET(request: NextRequest) {
       return sortOrder === "asc" ? aDate - bDate : bDate - aDate;
     });
 
-    const total = taskCount + stepCount;
-    const paginated = allItems.slice(skip, skip + perPage);
+    const totalCount = taskCount + stepCount;
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const paginated = allItems.slice(skip, skip + pageSize);
 
     return NextResponse.json({
       data: paginated,
       pagination: {
         page,
-        perPage,
-        total,
-        totalPages: Math.ceil(total / perPage),
+        pageSize,
+        totalCount,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
       },
     });
   } catch (error) {
