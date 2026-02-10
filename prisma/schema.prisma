@@ -144,18 +144,22 @@ enum PartnerStatus {
 }
 
 model PartnerBusiness {
-  id         String   @id @default(uuid())
-  partnerId  String
-  businessId String
-  role       String?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id          String   @id @default(uuid())
+  partnerId   String
+  businessId  String
+  role        String?
+  isActive    Boolean  @default(true)
+  permissions String[] @default([])
+  canEdit     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   partner  Partner  @relation(fields: [partnerId], references: [id])
   business Business @relation(fields: [businessId], references: [id])
 
   @@unique([partnerId, businessId])
   @@index([businessId])
+  @@index([partnerId, isActive])
 }
 
 // ============================================================

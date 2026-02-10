@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { getBusinessIdFilter } from "@/lib/access-control";
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,6 +25,9 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || searchParams.get("perPage") || "20", 10)));
     const skip = (page - 1) * pageSize;
 
+    // パートナーの場合: アクセス可能な事業に限定
+    const allowedBizIds = await getBusinessIdFilter(user, "tasks");
+
     // Build Task filter
     const taskWhere: Record<string, unknown> = { deletedAt: null };
     if (assigneeId) taskWhere.assigneeId = assigneeId;
@@ -31,6 +35,14 @@ export async function GET(request: NextRequest) {
     if (businessId) taskWhere.businessId = businessId;
     if (priority) taskWhere.priority = priority;
     if (query) taskWhere.title = { contains: query, mode: "insensitive" };
+
+    // パートナーアクセス制御
+    if (allowedBizIds) {
+      taskWhere.OR = [
+        { businessId: { in: allowedBizIds } },
+        { customerBusiness: { businessId: { in: allowedBizIds } } },
+      ];
+    }
     if (dateFrom || dateTo) {
       taskWhere.dueDate = {};
       if (dateFrom) (taskWhere.dueDate as Record<string, unknown>).gte = new Date(dateFrom);
@@ -41,6 +53,15 @@ export async function GET(request: NextRequest) {
     const stepWhere: Record<string, unknown> = {};
     if (assigneeId) stepWhere.assigneeId = assigneeId;
     if (query) stepWhere.title = { contains: query, mode: "insensitive" };
+
+    // パートナーアクセス制御 (ワークフローステップ)
+    if (allowedBizIds) {
+      stepWhere.workflow = {
+        ...((stepWhere.workflow as Record<string, unknown>) || {}),
+        customerBusiness: { businessId: { in: allowedBizIds }, deletedAt: null },
+      };
+    }
+
     if (status) {
       // Map task statuses to step statuses
       if (status === "ACTIVE") stepWhere.status = "ACTIVE";

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { getPartnerAccess } from "@/lib/access-control";
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,6 +25,12 @@ export async function GET(request: NextRequest) {
     if (status) where.status = status;
     if (period) where.period = period;
     if (type) where.type = type;
+
+    // パートナーの場合: 自分のパートナーIDに紐づく支払いのみ
+    const access = await getPartnerAccess(user);
+    if (access) {
+      where.partnerId = access.partnerId;
+    }
 
     const [payments, total] = await Promise.all([
       prisma.payment.findMany({
