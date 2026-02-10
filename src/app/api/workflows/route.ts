@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { getBusinessIdFilter } from "@/lib/access-control";
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +21,12 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {};
     if (customerBusinessId) where.customerBusinessId = customerBusinessId;
     if (status) where.status = status;
+
+    // パートナーの場合: アクセス可能な事業のワークフローのみ
+    const allowedBizIds = await getBusinessIdFilter(user, "workflows");
+    if (allowedBizIds) {
+      where.customerBusiness = { businessId: { in: allowedBizIds }, deletedAt: null };
+    }
 
     const [workflows, total] = await Promise.all([
       prisma.workflow.findMany({

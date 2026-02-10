@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { getBusinessIdFilter } from "@/lib/access-control";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +17,12 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = {};
     if (isActive !== null) {
       where.isActive = isActive === "true";
+    }
+
+    // パートナーの場合: 割り当てられた事業のみ表示
+    const allowedBizIds = await getBusinessIdFilter(user);
+    if (allowedBizIds) {
+      where.id = { in: allowedBizIds };
     }
 
     const businesses = await prisma.business.findMany({

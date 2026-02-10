@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { getBusinessIdFilter } from "@/lib/access-control";
 
 export async function GET(request: NextRequest) {
   try {
@@ -138,9 +139,13 @@ export async function GET(request: NextRequest) {
       orderBy: { nextActionDate: "asc" },
     });
 
-    // Business summary
+    // Business summary (パートナーは割当事業のみ)
+    const allowedBizIds = await getBusinessIdFilter(user);
+    const bizWhere: Record<string, unknown> = { isActive: true };
+    if (allowedBizIds) bizWhere.id = { in: allowedBizIds };
+
     const businesses = await prisma.business.findMany({
-      where: { isActive: true },
+      where: bizWhere,
       select: {
         id: true,
         name: true,

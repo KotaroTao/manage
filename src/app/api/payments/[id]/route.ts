@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { getPartnerAccess } from "@/lib/access-control";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -20,9 +21,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const access = await getPartnerAccess(user);
 
     const payment = await prisma.payment.findFirst({
-      where: { id, deletedAt: null },
+      where: {
+        id,
+        deletedAt: null,
+        ...(access && { partnerId: access.partnerId }),
+      },
       include: {
         partner: { select: { id: true, name: true, company: true } },
         workflow: { select: { id: true, status: true } },
@@ -57,9 +63,14 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const access = await getPartnerAccess(user);
 
     const existing = await prisma.payment.findFirst({
-      where: { id, deletedAt: null },
+      where: {
+        id,
+        deletedAt: null,
+        ...(access && { partnerId: access.partnerId }),
+      },
     });
 
     if (!existing) {
