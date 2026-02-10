@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/input';
 import { formatCurrency, getApiError } from '@/lib/utils';
 
 interface BusinessCustomerCount {
@@ -38,21 +39,24 @@ export default function ReportsPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [months, setMonths] = useState(6);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/reports');
+      const res = await fetch(`/api/reports?months=${months}`);
       if (!res.ok) throw new Error(await getApiError(res, 'レポートデータの取得に失敗しました'));
       const json = await res.json();
       setData(json.data);
+      setLastUpdated(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : '不明なエラー');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [months]);
 
   useEffect(() => {
     fetchReports();
@@ -89,9 +93,38 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">レポート</h1>
-        <p className="mt-1 text-sm text-gray-500">業務状況の概要レポート</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">レポート</h1>
+          <p className="mt-1 text-sm text-gray-500">業務状況の概要レポート</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Select
+            options={[
+              { label: '3ヶ月', value: '3' },
+              { label: '6ヶ月', value: '6' },
+              { label: '12ヶ月', value: '12' },
+              { label: '24ヶ月', value: '24' },
+            ]}
+            value={String(months)}
+            onChange={(e) => setMonths(Number(e.target.value))}
+            selectSize="sm"
+            className="w-24"
+          />
+          {lastUpdated && (
+            <span className="text-xs text-gray-400">
+              {lastUpdated.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={fetchReports}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            更新
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -175,7 +208,7 @@ export default function ReportsPage() {
 
         {/* Monthly payment trends */}
         <Card>
-          <CardHeader title="月別支払い推移 (過去6ヶ月)" />
+          <CardHeader title={`月別支払い推移 (過去${months}ヶ月)`} />
           <CardBody>
             {data.monthlyPaymentTrends.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-8">データがありません</p>

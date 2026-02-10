@@ -155,3 +155,40 @@ export async function getApiError(res: Response, fallback: string): Promise<stri
     return `${fallback} (${res.status})`;
   }
 }
+
+/**
+ * Export data as a CSV file download.
+ * @param filename - The name of the downloaded file (without .csv extension)
+ * @param headers - Array of column header labels
+ * @param rows - Array of row data (each row is an array of cell values)
+ */
+export function exportToCsv(
+  filename: string,
+  headers: string[],
+  rows: (string | number | null | undefined)[][],
+): void {
+  const escape = (val: string | number | null | undefined): string => {
+    if (val == null) return "";
+    const str = String(val);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const csvContent = [
+    headers.map(escape).join(","),
+    ...rows.map((row) => row.map(escape).join(",")),
+  ].join("\n");
+
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `${filename}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

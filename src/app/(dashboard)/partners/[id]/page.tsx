@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardBody } from '@/components/ui/card';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ConfirmModal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
 import { formatCurrency, formatDate, getApiError } from '@/lib/utils';
 import type { PartnerFormData } from '@/types';
@@ -107,6 +107,8 @@ export default function PartnerDetailPage() {
     name: '',
     contractType: 'CONTRACT',
   });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchPartner = useCallback(async () => {
     setLoading(true);
@@ -184,6 +186,21 @@ export default function PartnerDetailPage() {
     }
   };
 
+  const handleDeletePartner = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/partners/${partnerId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await getApiError(res, '削除に失敗しました'));
+      showToast('パートナーを削除しました', 'success');
+      router.push('/partners');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '削除に失敗しました', 'error');
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   const maskString = (str: string | null) => {
     if (!str) return '-';
     if (str.length <= 2) return '**';
@@ -252,7 +269,12 @@ export default function PartnerDetailPage() {
             )}
           </div>
         </div>
-        <Button onClick={() => setShowEditModal(true)}>編集</Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setShowEditModal(true)}>編集</Button>
+          <Button variant="secondary" onClick={() => setShowDeleteConfirm(true)} className="!text-red-600 !border-red-200 hover:!bg-red-50">
+            削除
+          </Button>
+        </div>
       </div>
 
       {/* Info & Bank cards */}
@@ -573,6 +595,17 @@ export default function PartnerDetailPage() {
           />
         </div>
       </Modal>
+      <ConfirmModal
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeletePartner}
+        title="パートナーの削除"
+        message={`「${partner.name}」を削除しますか？関連する支払いデータも影響を受けます。この操作は取り消せません。`}
+        confirmLabel="削除する"
+        cancelLabel="キャンセル"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 }
