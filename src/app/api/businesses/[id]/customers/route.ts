@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { getBusinessIdFilter } from "@/lib/access-control";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -12,6 +13,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "customers");
+
+    // パートナーの場合、この事業にアクセス可能か確認
+    if (allowedBizIds && !allowedBizIds.includes(id)) {
+      return NextResponse.json({ error: "Forbidden: この事業へのアクセス権限がありません" }, { status: 403 });
+    }
+
     const { searchParams } = request.nextUrl;
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || undefined;

@@ -2,8 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { getBusinessIdFilter, canWrite } from "@/lib/access-control";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+/** パートナー向け: タスクのビジネスIDがアクセス可能か判定するwhere句 */
+function taskAccessWhere(allowedBizIds: string[] | undefined) {
+  if (!allowedBizIds) return {};
+  return {
+    OR: [
+      { businessId: { in: allowedBizIds } },
+      { customerBusiness: { businessId: { in: allowedBizIds } } },
+    ],
+  };
+}
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
@@ -13,9 +25,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "tasks");
 
     const task = await prisma.task.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, ...taskAccessWhere(allowedBizIds) },
       include: {
         assignee: { select: { id: true, name: true, email: true } },
         customerBusiness: {
@@ -51,9 +64,15 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "tasks");
+
+    // パートナーの書き込み権限チェック
+    if (allowedBizIds && !(await canWrite(user))) {
+      return NextResponse.json({ error: "Forbidden: 編集権限がありません" }, { status: 403 });
+    }
 
     const existing = await prisma.task.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, ...taskAccessWhere(allowedBizIds) },
     });
 
     if (!existing) {
@@ -120,9 +139,15 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "tasks");
+
+    // パートナーの書き込み権限チェック
+    if (allowedBizIds && !(await canWrite(user))) {
+      return NextResponse.json({ error: "Forbidden: 削除権限がありません" }, { status: 403 });
+    }
 
     const existing = await prisma.task.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, ...taskAccessWhere(allowedBizIds) },
     });
 
     if (!existing) {

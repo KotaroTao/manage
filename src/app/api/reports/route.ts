@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { getBusinessIdFilter } from "@/lib/access-control";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,12 +13,17 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const months = Math.min(Math.max(parseInt(searchParams.get("months") || "6", 10) || 6, 1), 24);
 
+    const allowedBizIds = await getBusinessIdFilter(user, "reports");
+
     // -------------------------------------------------------
     // 1. businessCustomerCounts
     //    Count of active CustomerBusiness per Business
     // -------------------------------------------------------
     const businesses = await prisma.business.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(allowedBizIds && { id: { in: allowedBizIds } }),
+      },
       select: {
         name: true,
         colorCode: true,
@@ -46,16 +52,26 @@ export async function GET(request: NextRequest) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
+    const taskBaseWhere = {
+      deletedAt: null,
+      ...(allowedBizIds && {
+        OR: [
+          { businessId: { in: allowedBizIds } },
+          { customerBusiness: { businessId: { in: allowedBizIds } } },
+        ],
+      }),
+    };
+
     const [totalTasks, completedTasks] = await Promise.all([
       prisma.task.count({
         where: {
-          deletedAt: null,
+          ...taskBaseWhere,
           createdAt: { gte: monthStart, lte: monthEnd },
         },
       }),
       prisma.task.count({
         where: {
-          deletedAt: null,
+          ...taskBaseWhere,
           status: "DONE",
           completedAt: { gte: monthStart, lte: monthEnd },
         },
@@ -86,6 +102,9 @@ export async function GET(request: NextRequest) {
         status: "PAID",
         deletedAt: null,
         period: { in: periodList },
+        ...(allowedBizIds && {
+          customerBusiness: { businessId: { in: allowedBizIds } },
+        }),
       },
       _sum: { totalAmount: true },
     });
@@ -103,12 +122,20 @@ export async function GET(request: NextRequest) {
     // 4. userTaskLoads
     //    Count of active tasks (not DONE, deletedAt null) per assignee
     // -------------------------------------------------------
+    const taskLoadsWhere = {
+      status: "ACTIVE" as const,
+      deletedAt: null,
+      ...(allowedBizIds && {
+        OR: [
+          { businessId: { in: allowedBizIds } },
+          { customerBusiness: { businessId: { in: allowedBizIds } } },
+        ],
+      }),
+    };
+
     const taskLoads = await prisma.task.groupBy({
       by: ["assigneeId"],
-      where: {
-        status: "ACTIVE",
-        deletedAt: null,
-      },
+      where: taskLoadsWhere,
       _count: { id: true },
     });
 

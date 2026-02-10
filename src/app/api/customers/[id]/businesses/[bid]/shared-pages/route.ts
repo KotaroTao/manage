@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { getBusinessIdFilter, canWrite } from "@/lib/access-control";
 
 type RouteContext = { params: Promise<{ id: string; bid: string }> };
 
@@ -23,6 +24,18 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const { bid } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "customers");
+
+    // パートナーの場合、customerBusinessのbusinessIdがアクセス可能か確認
+    if (allowedBizIds) {
+      const cb = await prisma.customerBusiness.findFirst({
+        where: { id: bid, deletedAt: null, businessId: { in: allowedBizIds } },
+        select: { id: true },
+      });
+      if (!cb) {
+        return NextResponse.json({ data: [] });
+      }
+    }
 
     const pages = await prisma.sharedPage.findMany({
       where: { customerBusinessId: bid },
@@ -50,10 +63,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const { id, bid } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "customers");
 
-    // Verify customerBusiness exists
+    // パートナーの書き込み権限チェック
+    if (allowedBizIds && !(await canWrite(user))) {
+      return NextResponse.json({ error: "Forbidden: 編集権限がありません" }, { status: 403 });
+    }
+
+    // Verify customerBusiness exists (and is accessible to partner)
     const cb = await prisma.customerBusiness.findFirst({
-      where: { id: bid, customerId: id, deletedAt: null },
+      where: {
+        id: bid,
+        customerId: id,
+        deletedAt: null,
+        ...(allowedBizIds && { businessId: { in: allowedBizIds } }),
+      },
     });
     if (!cb) {
       return NextResponse.json(

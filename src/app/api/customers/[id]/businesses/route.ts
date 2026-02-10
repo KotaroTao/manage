@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { getBusinessIdFilter, canEditInBusiness } from "@/lib/access-control";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,10 +14,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "customers");
 
-    // Verify customer exists
+    // Verify customer exists (and is accessible to partner)
     const customer = await prisma.customer.findFirst({
-      where: { id, deletedAt: null },
+      where: {
+        id,
+        deletedAt: null,
+        ...(allowedBizIds && {
+          customerBusinesses: {
+            some: { businessId: { in: allowedBizIds }, deletedAt: null },
+          },
+        }),
+      },
     });
 
     if (!customer) {
@@ -24,7 +34,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const customerBusinesses = await prisma.customerBusiness.findMany({
-      where: { customerId: id, deletedAt: null },
+      where: {
+        customerId: id,
+        deletedAt: null,
+        ...(allowedBizIds && { businessId: { in: allowedBizIds } }),
+      },
       include: {
         business: { select: { id: true, name: true, code: true, colorCode: true } },
         assignee: { select: { id: true, name: true, email: true } },
@@ -51,15 +65,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params;
 
-    // Verify customer exists
-    const customer = await prisma.customer.findFirst({
-      where: { id, deletedAt: null },
-    });
-
-    if (!customer) {
-      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
-    }
-
     const body = await request.json();
     const { businessId, assigneeId, nextActionDate, nextActionMemo, customFields, note, status } = body;
 
@@ -75,6 +80,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { error: "assigneeId is required" },
         { status: 400 },
       );
+    }
+
+    // パートナーの書き込み権限チェック
+    if (!(await canEditInBusiness(user, businessId))) {
+      return NextResponse.json({ error: "Forbidden: この事業への編集権限がありません" }, { status: 403 });
+    }
+
+    // Verify customer exists
+    const customer = await prisma.customer.findFirst({
+      where: { id, deletedAt: null },
+    });
+
+    if (!customer) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
     // Check for duplicate (only among non-soft-deleted records)

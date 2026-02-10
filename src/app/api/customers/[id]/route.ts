@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { getBusinessIdFilter, canWrite } from "@/lib/access-control";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,12 +14,24 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "customers");
 
     const customer = await prisma.customer.findFirst({
-      where: { id, deletedAt: null },
+      where: {
+        id,
+        deletedAt: null,
+        ...(allowedBizIds && {
+          customerBusinesses: {
+            some: { businessId: { in: allowedBizIds }, deletedAt: null },
+          },
+        }),
+      },
       include: {
         customerBusinesses: {
-          where: { deletedAt: null },
+          where: {
+            deletedAt: null,
+            ...(allowedBizIds && { businessId: { in: allowedBizIds } }),
+          },
           include: {
             business: { select: { id: true, name: true, code: true } },
             assignee: { select: { id: true, name: true } },
@@ -53,9 +66,23 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "customers");
+
+    // パートナーの書き込み権限チェック
+    if (allowedBizIds && !(await canWrite(user))) {
+      return NextResponse.json({ error: "Forbidden: 編集権限がありません" }, { status: 403 });
+    }
 
     const existing = await prisma.customer.findFirst({
-      where: { id, deletedAt: null },
+      where: {
+        id,
+        deletedAt: null,
+        ...(allowedBizIds && {
+          customerBusinesses: {
+            some: { businessId: { in: allowedBizIds }, deletedAt: null },
+          },
+        }),
+      },
     });
 
     if (!existing) {
@@ -123,9 +150,23 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+    const allowedBizIds = await getBusinessIdFilter(user, "customers");
+
+    // パートナーの書き込み権限チェック
+    if (allowedBizIds && !(await canWrite(user))) {
+      return NextResponse.json({ error: "Forbidden: 削除権限がありません" }, { status: 403 });
+    }
 
     const existing = await prisma.customer.findFirst({
-      where: { id, deletedAt: null },
+      where: {
+        id,
+        deletedAt: null,
+        ...(allowedBizIds && {
+          customerBusinesses: {
+            some: { businessId: { in: allowedBizIds }, deletedAt: null },
+          },
+        }),
+      },
     });
 
     if (!existing) {

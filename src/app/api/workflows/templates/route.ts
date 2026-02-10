@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { getBusinessIdFilter } from "@/lib/access-control";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,8 +15,18 @@ export async function GET(request: NextRequest) {
     const businessId = searchParams.get("businessId") || undefined;
     const isActive = searchParams.get("isActive");
 
+    const allowedBizIds = await getBusinessIdFilter(user, "workflows");
+
     const where: Record<string, unknown> = {};
-    if (businessId) where.businessId = businessId;
+    if (businessId) {
+      // パートナーの場合、リクエストされたbusinessIdがアクセス可能か確認
+      if (allowedBizIds && !allowedBizIds.includes(businessId)) {
+        return NextResponse.json({ data: [] });
+      }
+      where.businessId = businessId;
+    } else if (allowedBizIds) {
+      where.businessId = { in: allowedBizIds };
+    }
     if (isActive !== null && isActive !== undefined) {
       where.isActive = isActive === "true";
     }
