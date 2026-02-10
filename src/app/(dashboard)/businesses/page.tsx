@@ -120,10 +120,12 @@ export default function BusinessesPage() {
           description: form.description || undefined,
           managerId: form.managerId || undefined,
           colorCode: form.colorCode,
-          isActive: true,
         }),
       });
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error || `作成に失敗しました (${res.status})`);
+      }
       showToast('事業を作成しました', 'success');
       setShowCreate(false);
       setForm({ name: '', code: '', description: '', managerId: '', colorCode: '#3B82F6' });

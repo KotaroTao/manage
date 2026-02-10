@@ -53,6 +53,9 @@ jobs:
             echo "=== Stash local changes ==="
             git stash --include-untracked || true
 
+            echo "=== Ensure on main branch ==="
+            git checkout main || true
+
             echo "=== Pull latest code ==="
             git pull --rebase origin main
 
