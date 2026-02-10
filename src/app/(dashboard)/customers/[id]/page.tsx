@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { formatDate, formatCurrency, isOverdue } from '@/lib/utils';
+import { formatDate, formatCurrency, isOverdue, getApiError } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 
 /* -------------------------------------------------------------------------- */
@@ -162,7 +162,7 @@ function EditCustomerModal({
           note: form.note || null,
         }),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('顧客情報を更新しました', 'success');
       onUpdated();
       onClose();
@@ -305,7 +305,7 @@ function AddBusinessModal({
           status: 'ACTIVE',
         }),
       });
-      if (!res.ok) throw new Error('登録に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '登録に失敗しました'));
       showToast('事業を追加しました', 'success');
       setForm({ businessId: '', assigneeId: '' });
       onAdded();
@@ -398,7 +398,7 @@ export default function CustomerDetailPage() {
     setError(null);
     try {
       const res = await fetch(`/api/customers/${customerId}`);
-      if (!res.ok) throw new Error('データの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'データの取得に失敗しました'));
       const json = await res.json();
       setCustomer(json.data || json);
     } catch (err) {
@@ -421,7 +421,7 @@ export default function CustomerDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newTag.trim() }),
       });
-      if (!res.ok) throw new Error('タグの追加に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'タグの追加に失敗しました'));
       showToast('タグを追加しました', 'success');
       setNewTag('');
       fetchCustomer();
@@ -437,7 +437,7 @@ export default function CustomerDetailPage() {
       const res = await fetch(`/api/customers/${customerId}/tags/${tagId}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('タグの削除に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'タグの削除に失敗しました'));
       showToast('タグを削除しました', 'success');
       fetchCustomer();
     } catch (err) {

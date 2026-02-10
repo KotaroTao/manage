@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, getApiError } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
 
 interface Payment {
@@ -109,24 +109,16 @@ export default function PaymentsPage() {
       if (filterType) params.set('type', filterType);
 
       const res = await fetch(`/api/payments?${params.toString()}`);
-      if (!res.ok) throw new Error('支払いデータの取得に失敗しました');
-      const json: PaginatedResponse<Payment> = await res.json();
+      if (!res.ok) throw new Error(await getApiError(res, '支払いデータの取得に失敗しました'));
+      const json = await res.json();
       setPayments(json.data);
-      setTotalPages(json.pagination.totalPages);
-      setTotalCount(json.pagination.totalCount);
+      setTotalPages(json.pagination?.totalPages ?? 1);
+      setTotalCount(json.pagination?.total ?? 0);
 
-      // Calculate summary from all data (ideally from a separate API)
-      const allPayments = json.data;
-      const now = new Date();
-      const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      setSummary({
-        totalThisMonth: allPayments
-          .filter((p) => p.period === thisMonth && p.status === 'PAID')
-          .reduce((sum, p) => sum + p.totalAmount, 0),
-        pendingCount: allPayments.filter((p) => p.status === 'PENDING').length,
-        paidCount: allPayments.filter((p) => p.status === 'PAID').length,
-        draftCount: allPayments.filter((p) => p.status === 'DRAFT').length,
-      });
+      // Use server-side summary (aggregated from all data, not just current page)
+      if (json.summary) {
+        setSummary(json.summary);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '不明なエラー');
     } finally {
@@ -176,7 +168,7 @@ export default function PaymentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newPayment, totalAmount, status: 'DRAFT' }),
       });
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '作成に失敗しました'));
       showToast('支払いを作成しました', 'success');
       setShowCreateModal(false);
       setNewPayment({ partnerId: '', amount: 0, tax: 0, type: 'MONTHLY', period: '', dueDate: '', note: '' });
@@ -197,7 +189,7 @@ export default function PaymentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('ステータスを更新しました', 'success');
       fetchPayments();
     } catch (err) {
@@ -209,7 +201,7 @@ export default function PaymentsPage() {
     if (!confirm('この支払いを削除しますか？')) return;
     try {
       const res = await fetch(`/api/payments/${paymentId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('削除に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '削除に失敗しました'));
       showToast('支払いを削除しました', 'success');
       fetchPayments();
     } catch (err) {

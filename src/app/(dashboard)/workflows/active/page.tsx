@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getApiError } from '@/lib/utils';
 
 interface WorkflowStep {
   id: string;
@@ -70,7 +70,7 @@ export default function ActiveWorkflowsPage() {
       if (filterBusiness) params.set('businessId', filterBusiness);
       if (filterCustomer) params.set('customer', filterCustomer);
       const res = await fetch(`/api/workflows?${params.toString()}`);
-      if (!res.ok) throw new Error('ワークフローの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'ワークフローの取得に失敗しました'));
       const json = await res.json();
       setWorkflows(json.data || []);
     } catch (err) {

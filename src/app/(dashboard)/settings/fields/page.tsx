@@ -6,6 +6,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
+import { getApiError } from '@/lib/utils';
 
 interface BusinessOption {
   id: string;
@@ -86,7 +87,7 @@ export default function FieldsSettingsPage() {
     setError(null);
     try {
       const res = await fetch(`/api/settings/fields?businessId=${selectedBusiness}`);
-      if (!res.ok) throw new Error('フィールドの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'フィールドの取得に失敗しました'));
       const json = await res.json();
       setFields(json.data || []);
     } catch (err) {
@@ -127,7 +128,7 @@ export default function FieldsSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '作成に失敗しました'));
       showToast('フィールドを追加しました', 'success');
       setShowCreateModal(false);
       setForm({ fieldKey: '', fieldLabel: '', fieldType: 'TEXT', options: '', isRequired: false });
@@ -169,7 +170,7 @@ export default function FieldsSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('フィールドを更新しました', 'success');
       setShowEditModal(false);
       fetchFields();
@@ -184,7 +185,7 @@ export default function FieldsSettingsPage() {
     if (!confirm('このフィールドを削除しますか？')) return;
     try {
       const res = await fetch(`/api/settings/fields/${fieldId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('削除に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '削除に失敗しました'));
       showToast('フィールドを削除しました', 'success');
       fetchFields();
     } catch (err) {

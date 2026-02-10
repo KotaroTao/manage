@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getApiError } from '@/lib/utils';
 
 interface MonthlyPayment {
   partnerId: string;
@@ -29,7 +29,7 @@ export default function MonthlyPaymentPage() {
     setError(null);
     try {
       const res = await fetch(`/api/payments/monthly?period=${period}`);
-      if (!res.ok) throw new Error('月次データの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '月次データの取得に失敗しました'));
       const json = await res.json();
       setData(json.data || []);
     } catch (err) {

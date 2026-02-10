@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Card, CardHeader, CardBody } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
+import { getApiError } from '@/lib/utils';
 
 interface TemplateStep {
   id?: string;
@@ -55,7 +56,7 @@ export default function TemplateEditorPage() {
     setError(null);
     try {
       const res = await fetch(`/api/workflows/templates/${templateId}`);
-      if (!res.ok) throw new Error('テンプレートの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'テンプレートの取得に失敗しました'));
       const json = await res.json();
       const tpl: TemplateDetail = json.data;
       setName(tpl.name);
@@ -151,7 +152,7 @@ export default function TemplateEditorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, businessId, steps }),
       });
-      if (!res.ok) throw new Error('保存に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '保存に失敗しました'));
       showToast('テンプレートを保存しました', 'success');
       if (isNew) {
         const json = await res.json();
@@ -172,7 +173,7 @@ export default function TemplateEditorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: false }),
       });
-      if (!res.ok) throw new Error('無効化に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '無効化に失敗しました'));
       showToast('テンプレートを無効化しました', 'success');
       router.push('/workflows/templates');
     } catch (err) {

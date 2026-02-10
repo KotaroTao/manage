@@ -6,7 +6,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getApiError } from '@/lib/utils';
 import type { UserFormData } from '@/types';
 
 interface UserItem {
@@ -66,7 +66,7 @@ export default function UsersSettingsPage() {
     setError(null);
     try {
       const res = await fetch('/api/settings/users');
-      if (!res.ok) throw new Error('ユーザーデータの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'ユーザーデータの取得に失敗しました'));
       const json = await res.json();
       setUsers(json.data || []);
     } catch (err) {
@@ -92,7 +92,7 @@ export default function UsersSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error('ユーザーの作成に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'ユーザーの作成に失敗しました'));
       showToast('ユーザーを作成しました', 'success');
       setShowCreateModal(false);
       setForm({ name: '', email: '', password: '', role: 'MEMBER' as const, isActive: true });
@@ -124,7 +124,7 @@ export default function UsersSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('ユーザーを更新しました', 'success');
       setShowEditModal(false);
       fetchUsers();
@@ -143,7 +143,7 @@ export default function UsersSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: false }),
       });
-      if (!res.ok) throw new Error('無効化に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '無効化に失敗しました'));
       showToast('ユーザーを無効化しました', 'success');
       fetchUsers();
     } catch (err) {

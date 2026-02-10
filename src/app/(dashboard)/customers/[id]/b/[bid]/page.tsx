@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { formatDate, formatDateTime, formatCurrency, isOverdue, cn } from '@/lib/utils';
+import { formatDate, formatDateTime, formatCurrency, isOverdue, cn, getApiError } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 
 /* -------------------------------------------------------------------------- */
@@ -195,7 +195,7 @@ function OverviewTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customFields: fieldValues }),
       });
-      if (!res.ok) throw new Error('保存に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '保存に失敗しました'));
       showToast('カスタムフィールドを保存しました', 'success');
       setEditingFields(false);
       onUpdate();
@@ -220,7 +220,7 @@ function OverviewTab({
           assigneeId: metaForm.assigneeId || null,
         }),
       });
-      if (!res.ok) throw new Error('保存に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '保存に失敗しました'));
       showToast('情報を更新しました', 'success');
       setEditMeta(false);
       onUpdate();
@@ -461,7 +461,7 @@ function WorkflowsTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId: selectedTemplate }),
       });
-      if (!res.ok) throw new Error('フローの開始に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'フローの開始に失敗しました'));
       showToast('フローを開始しました', 'success');
       setShowStart(false);
       setSelectedTemplate('');
@@ -480,7 +480,7 @@ function WorkflowsTab({
         `/api/customers/${customerId}/businesses/${cbId}/workflows/${workflowId}/steps/${stepId}/complete`,
         { method: 'POST' }
       );
-      if (!res.ok) throw new Error('ステップの完了に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'ステップの完了に失敗しました'));
       showToast('ステップを完了しました', 'success');
       onUpdate();
     } catch (err) {
@@ -674,7 +674,7 @@ function TasksTab({
           status: 'ACTIVE',
         }),
       });
-      if (!res.ok) throw new Error('タスクの追加に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'タスクの追加に失敗しました'));
       showToast('タスクを追加しました', 'success');
       setShowAdd(false);
       setForm({ title: '', description: '', assigneeId: '', dueDate: '', priority: 'MEDIUM' });
@@ -690,7 +690,7 @@ function TasksTab({
     setActionId(taskId);
     try {
       const res = await fetch(`/api/tasks/${taskId}/complete`, { method: 'POST' });
-      if (!res.ok) throw new Error('完了に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '完了に失敗しました'));
       showToast('タスクを完了しました', 'success');
       onUpdate();
     } catch (err) {
@@ -705,7 +705,7 @@ function TasksTab({
     setActionId(taskId);
     try {
       const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('削除に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '削除に失敗しました'));
       showToast('タスクを削除しました', 'success');
       onUpdate();
     } catch (err) {
@@ -869,7 +869,7 @@ function ActivityTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error('登録に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '登録に失敗しました'));
       showToast('対応記録を追加しました', 'success');
       setShowAdd(false);
       setForm({ type: 'MEMO', title: '', content: '', contactedAt: new Date().toISOString().split('T')[0] });
@@ -1017,7 +1017,7 @@ function SharedTab({
           isPublished: false,
         }),
       });
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '作成に失敗しました'));
       showToast('ページを作成しました', 'success');
       setShowCreate(false);
       setForm({ type: 'REPORT', title: '', content: '' });
@@ -1041,7 +1041,7 @@ function SharedTab({
           expiresInDays: Number(linkForm.expiresInDays) || 30,
         }),
       });
-      if (!res.ok) throw new Error('リンクの生成に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'リンクの生成に失敗しました'));
       const json = await res.json();
       setGeneratedUrl(json.data?.url || json.url || `${window.location.origin}/shared/${pageId}`);
       showToast('共有リンクを生成しました', 'success');
@@ -1236,7 +1236,7 @@ export default function CustomerBusinessDetailPage() {
         fetch(`/api/customers/${customerId}/businesses/${cbId}`),
         fetch('/api/settings/users'),
       ]);
-      if (!detailRes.ok) throw new Error('データの取得に失敗しました');
+      if (!detailRes.ok) throw new Error(await getApiError(detailRes, 'データの取得に失敗しました'));
       const detailJson = await detailRes.json();
       const d = detailJson.data || detailJson;
       setDetail(d);
@@ -1271,7 +1271,7 @@ export default function CustomerBusinessDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nextActionDate: nextActionDate || null }),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('次回対応日を更新しました', 'success');
       setEditingNextAction(false);
       fetchAll();

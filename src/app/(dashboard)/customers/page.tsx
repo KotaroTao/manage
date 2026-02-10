@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getApiError } from '@/lib/utils';
 import { useToast } from '@/components/ui/toast';
 
 /* -------------------------------------------------------------------------- */
@@ -264,7 +264,7 @@ export default function CustomersPage() {
       if (statusFilter) params.set('status', statusFilter);
 
       const res = await fetch(`/api/customers?${params.toString()}`);
-      if (!res.ok) throw new Error('データの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'データの取得に失敗しました'));
       const json = await res.json();
       setCustomers(json.data || []);
       setPagination(json.pagination || null);
