@@ -45,18 +45,20 @@ export async function GET(request: NextRequest) {
       prisma.payment.count({ where }),
     ]);
 
-    // Summary aggregation (not affected by pagination)
+    // Summary aggregation (パートナーの場合は自分の支払いのみ集計)
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const summaryBase: Record<string, unknown> = { deletedAt: null };
+    if (access) summaryBase.partnerId = access.partnerId;
 
     const [paidThisMonth, statusCounts] = await Promise.all([
       prisma.payment.aggregate({
-        where: { deletedAt: null, period: thisMonth, status: "PAID" },
+        where: { ...summaryBase, period: thisMonth, status: "PAID" },
         _sum: { totalAmount: true },
       }),
       prisma.payment.groupBy({
         by: ["status"],
-        where: { deletedAt: null },
+        where: summaryBase,
         _count: true,
       }),
     ]);

@@ -17,6 +17,14 @@ const publicPaths = [
   "/api/shared",
 ];
 
+/**
+ * PARTNER ロールがアクセスできないページパス
+ */
+const partnerBlockedPaths = [
+  "/partners",
+  "/settings",
+];
+
 function isPublicPath(pathname: string): boolean {
   return publicPaths.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
@@ -49,6 +57,16 @@ export async function middleware(request: NextRequest) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("error", "inactive");
       return NextResponse.redirect(loginUrl);
+    }
+
+    // PARTNER ロールのルート制限 (ページのみ、APIは各ルートで制御)
+    if (payload.role === "PARTNER" && !pathname.startsWith("/api/")) {
+      const isBlocked = partnerBlockedPaths.some(
+        (path) => pathname === path || pathname.startsWith(`${path}/`),
+      );
+      if (isBlocked) {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
     }
   } catch {
     // Invalid token - redirect to login

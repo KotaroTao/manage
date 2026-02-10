@@ -145,3 +145,22 @@ export async function canEditInBusiness(
   if (!access) return true; // 非パートナーは全編集可
   return access.editableBusinessIds.includes(businessId);
 }
+
+/**
+ * パートナーの書き込み操作チェック
+ * 編集権限がない場合は false を返す (1つでも editableBusinessIds があれば true)
+ */
+export async function canWrite(user: SessionUser): Promise<boolean> {
+  const access = await getPartnerAccess(user);
+  if (!access) return true;
+  return access.editableBusinessIds.length > 0;
+}
+
+/**
+ * パートナーがアクセス不可のルートかチェック
+ * 返値: リダイレクト先 or null (アクセス可)
+ */
+export const PARTNER_BLOCKED_PATHS = [
+  "/partners",
+  "/settings",
+] as const;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
-import { getBusinessIdFilter } from "@/lib/access-control";
+import { getBusinessIdFilter, canEditInBusiness } from "@/lib/access-control";
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,19 +28,25 @@ export async function GET(request: NextRequest) {
     // パートナーの場合: アクセス可能な事業に限定
     const allowedBizIds = await getBusinessIdFilter(user, "tasks");
 
+    // 事業フィルタ: パートナー制限と businessId の交差を取る
+    const effectiveBizIds = allowedBizIds
+      ? businessId
+        ? allowedBizIds.includes(businessId) ? [businessId] : []
+        : allowedBizIds
+      : businessId
+        ? [businessId]
+        : null;
+
     // Build Task filter
     const taskWhere: Record<string, unknown> = { deletedAt: null };
     if (assigneeId) taskWhere.assigneeId = assigneeId;
     if (status) taskWhere.status = status;
-    if (businessId) taskWhere.businessId = businessId;
     if (priority) taskWhere.priority = priority;
     if (query) taskWhere.title = { contains: query, mode: "insensitive" };
-
-    // パートナーアクセス制御
-    if (allowedBizIds) {
+    if (effectiveBizIds) {
       taskWhere.OR = [
-        { businessId: { in: allowedBizIds } },
-        { customerBusiness: { businessId: { in: allowedBizIds } } },
+        { businessId: { in: effectiveBizIds } },
+        { customerBusiness: { businessId: { in: effectiveBizIds } } },
       ];
     }
     if (dateFrom || dateTo) {
@@ -53,23 +59,13 @@ export async function GET(request: NextRequest) {
     const stepWhere: Record<string, unknown> = {};
     if (assigneeId) stepWhere.assigneeId = assigneeId;
     if (query) stepWhere.title = { contains: query, mode: "insensitive" };
-
-    // パートナーアクセス制御 (ワークフローステップ)
-    if (allowedBizIds) {
-      stepWhere.workflow = {
-        ...((stepWhere.workflow as Record<string, unknown>) || {}),
-        customerBusiness: { businessId: { in: allowedBizIds }, deletedAt: null },
-      };
-    }
-
     if (status) {
-      // Map task statuses to step statuses
       if (status === "ACTIVE") stepWhere.status = "ACTIVE";
       else if (status === "DONE") stepWhere.status = "DONE";
     }
-    if (businessId) {
+    if (effectiveBizIds) {
       stepWhere.workflow = {
-        customerBusiness: { businessId, deletedAt: null },
+        customerBusiness: { businessId: { in: effectiveBizIds }, deletedAt: null },
       };
     }
     if (dateFrom || dateTo) {
@@ -216,6 +212,11 @@ export async function POST(request: NextRequest) {
     }
     if (!dueDate) {
       return NextResponse.json({ error: "dueDate is required" }, { status: 400 });
+    }
+
+    // パートナーの書き込み権限チェック
+    if (businessId && !(await canEditInBusiness(user, businessId))) {
+      return NextResponse.json({ error: "この事業への編集権限がありません" }, { status: 403 });
     }
 
     const task = await prisma.task.create({
