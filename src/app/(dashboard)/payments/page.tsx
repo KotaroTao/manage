@@ -1,14 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/card';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
+import { useAuth } from '@/contexts/auth-context';
 import { formatCurrency, formatDate, formatRelativeDate, getApiError, exportToCsv } from '@/lib/utils';
-import type { PaginatedResponse } from '@/types';
 
 interface Payment {
   id: string;
@@ -17,6 +18,8 @@ interface Payment {
   amount: number;
   tax: number;
   totalAmount: number;
+  withholdingTax: number;
+  netAmount: number | null;
   type: string;
   status: string;
   period: string | null;
@@ -33,28 +36,24 @@ interface PartnerOption {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  DRAFT: '下書き',
-  PENDING: '申請中',
-  APPROVED: '承認済',
-  PAID: '支払済',
+  DRAFT: '下書き', PENDING: '申請中', APPROVED: '承認済', PAID: '支払済', CANCELLED: '取消',
 };
 
-const STATUS_VARIANTS: Record<string, 'gray' | 'warning' | 'info' | 'success'> = {
-  DRAFT: 'gray',
-  PENDING: 'warning',
-  APPROVED: 'info',
-  PAID: 'success',
+const STATUS_VARIANTS: Record<string, 'gray' | 'warning' | 'info' | 'success' | 'danger'> = {
+  DRAFT: 'gray', PENDING: 'warning', APPROVED: 'info', PAID: 'success', CANCELLED: 'danger',
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  MONTHLY: '月額',
-  ONE_TIME: '一括',
-  MILESTONE: 'マイルストーン',
-  OTHER: 'その他',
+  SALARY: '給与', INVOICE: '請求書', COMMISSION: '手数料', BONUS: '賞与',
+  MONTHLY: '月額', ONE_TIME: '一括', MILESTONE: 'マイルストーン', OTHER: 'その他',
 };
 
 export default function PaymentsPage() {
+  const router = useRouter();
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const isManager = user?.role === 'MANAGER' || isAdmin;
 
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,10 +76,7 @@ export default function PaymentsPage() {
 
   // Summary
   const [summary, setSummary] = useState({
-    totalThisMonth: 0,
-    pendingCount: 0,
-    paidCount: 0,
-    draftCount: 0,
+    totalThisMonth: 0, pendingCount: 0, paidCount: 0, draftCount: 0,
   });
 
   // Create modal
@@ -88,14 +84,14 @@ export default function PaymentsPage() {
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [newPayment, setNewPayment] = useState({
-    partnerId: '',
-    amount: 0,
-    tax: 0,
-    type: 'MONTHLY',
-    period: '',
-    dueDate: '',
-    note: '',
+    partnerId: '', amount: 0, tax: 0, withholdingTax: 0, withholdingEnabled: false,
+    type: 'SALARY', period: '', dueDate: '', note: '',
   });
+
+  // Batch selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchAction, setBatchAction] = useState<string | null>(null);
+  const [batchProcessing, setBatchProcessing] = useState(false);
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
@@ -103,7 +99,7 @@ export default function PaymentsPage() {
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
-      params.set('pageSize', String(pageSize));
+      params.set('perPage', String(pageSize));
       if (filterPartner) params.set('partnerId', filterPartner);
       if (filterStatus) params.set('status', filterStatus);
       if (filterPeriod) params.set('period', filterPeriod);
@@ -115,11 +111,8 @@ export default function PaymentsPage() {
       setPayments(json.data);
       setTotalPages(json.pagination?.totalPages ?? 1);
       setTotalCount(json.pagination?.total ?? 0);
-
-      // Use server-side summary (aggregated from all data, not just current page)
-      if (json.summary) {
-        setSummary(json.summary);
-      }
+      if (json.summary) setSummary(json.summary);
+      setSelectedIds(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : '不明なエラー');
     } finally {
@@ -132,28 +125,29 @@ export default function PaymentsPage() {
       const res = await fetch('/api/partners?pageSize=200&status=ACTIVE');
       if (res.ok) {
         const json = await res.json();
-        setPartners(
-          (json.data || []).map((p: PartnerOption) => ({ id: p.id, name: p.name, company: p.company }))
-        );
+        setPartners((json.data || []).map((p: PartnerOption) => ({ id: p.id, name: p.name, company: p.company })));
       }
-    } catch {
-      // silently fail
-    }
+    } catch { /* silently fail */ }
   }, []);
 
-  useEffect(() => {
-    fetchPartners();
-  }, [fetchPartners]);
+  useEffect(() => { fetchPartners(); }, [fetchPartners]);
+  useEffect(() => { fetchPayments(); }, [fetchPayments]);
 
-  useEffect(() => {
-    fetchPayments();
-  }, [fetchPayments]);
+  const calcWithholdingTax = (amount: number) => {
+    if (amount <= 1000000) return Math.floor(amount * 0.1021);
+    return Math.floor(1000000 * 0.1021 + (amount - 1000000) * 0.2042);
+  };
 
-  // Auto-calc tax
   const handleAmountChange = (val: string) => {
     const amount = Number(val) || 0;
     const tax = Math.floor(amount * 0.1);
-    setNewPayment({ ...newPayment, amount, tax });
+    const wht = newPayment.withholdingEnabled ? calcWithholdingTax(amount) : 0;
+    setNewPayment({ ...newPayment, amount, tax, withholdingTax: wht });
+  };
+
+  const handleWithholdingToggle = (enabled: boolean) => {
+    const wht = enabled ? calcWithholdingTax(newPayment.amount) : 0;
+    setNewPayment({ ...newPayment, withholdingEnabled: enabled, withholdingTax: wht });
   };
 
   const handleCreate = async () => {
@@ -163,16 +157,24 @@ export default function PaymentsPage() {
     }
     setCreating(true);
     try {
-      const totalAmount = newPayment.amount + newPayment.tax;
       const res = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newPayment, totalAmount, status: 'DRAFT' }),
+        body: JSON.stringify({
+          partnerId: newPayment.partnerId,
+          amount: newPayment.amount,
+          tax: newPayment.tax,
+          withholdingTax: newPayment.withholdingTax,
+          type: newPayment.type,
+          period: newPayment.period || null,
+          dueDate: newPayment.dueDate || null,
+          note: newPayment.note || null,
+        }),
       });
       if (!res.ok) throw new Error(await getApiError(res, '作成に失敗しました'));
       showToast('支払いを作成しました', 'success');
       setShowCreateModal(false);
-      setNewPayment({ partnerId: '', amount: 0, tax: 0, type: 'MONTHLY', period: '', dueDate: '', note: '' });
+      setNewPayment({ partnerId: '', amount: 0, tax: 0, withholdingTax: 0, withholdingEnabled: false, type: 'SALARY', period: '', dueDate: '', note: '' });
       fetchPayments();
     } catch (err) {
       showToast(err instanceof Error ? err.message : '作成に失敗しました', 'error');
@@ -183,12 +185,10 @@ export default function PaymentsPage() {
 
   const handleStatusChange = async (paymentId: string, newStatus: string) => {
     try {
-      const body: Record<string, string> = { status: newStatus };
-      if (newStatus === 'PAID') body.paidAt = new Date().toISOString();
       const res = await fetch(`/api/payments/${paymentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('ステータスを更新しました', 'success');
@@ -211,6 +211,44 @@ export default function PaymentsPage() {
     }
   };
 
+  const handleBatchAction = async () => {
+    if (!batchAction || selectedIds.size === 0) return;
+    setBatchProcessing(true);
+    try {
+      const res = await fetch('/api/payments/batch', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentIds: Array.from(selectedIds), status: batchAction }),
+      });
+      if (!res.ok) throw new Error(await getApiError(res, '一括更新に失敗'));
+      const json = await res.json();
+      showToast(`${json.summary.success}件更新 / ${json.summary.failed}件失敗`, json.summary.failed > 0 ? 'error' : 'success');
+      setBatchAction(null);
+      setSelectedIds(new Set());
+      fetchPayments();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : '一括更新に失敗', 'error');
+    } finally {
+      setBatchProcessing(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === payments.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(payments.map((p) => p.id)));
+    }
+  };
+
   const renderSkeleton = () => (
     <div className="space-y-3">
       {Array.from({ length: 6 }).map((_, i) => (
@@ -223,43 +261,25 @@ export default function PaymentsPage() {
     switch (payment.status) {
       case 'DRAFT':
         return (
-          <div className="flex gap-1">
-            <button
-              onClick={() => handleStatusChange(payment.id, 'PENDING')}
-              className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100"
-            >
-              申請
-            </button>
-            <button
-              onClick={() => setDeleteTarget(payment.id)}
-              className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100"
-            >
-              削除
-            </button>
+          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+            {isManager && <button onClick={() => handleStatusChange(payment.id, 'PENDING')} className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100">申請</button>}
+            {isManager && <button onClick={() => setDeleteTarget(payment.id)} className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100">削除</button>}
           </div>
         );
       case 'PENDING':
-        return (
-          <button
-            onClick={() => handleStatusChange(payment.id, 'APPROVED')}
-            className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100"
-          >
-            承認
-          </button>
-        );
+        return isManager ? (
+          <button onClick={(e) => { e.stopPropagation(); handleStatusChange(payment.id, 'APPROVED'); }} className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100">承認</button>
+        ) : null;
       case 'APPROVED':
-        return (
-          <button
-            onClick={() => handleStatusChange(payment.id, 'PAID')}
-            className="px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100"
-          >
-            支払済
-          </button>
-        );
+        return isAdmin ? (
+          <button onClick={(e) => { e.stopPropagation(); handleStatusChange(payment.id, 'PAID'); }} className="px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100">支払済</button>
+        ) : null;
       default:
         return null;
     }
   };
+
+  const totalNet = (p: Payment) => p.netAmount ?? (p.totalAmount - (p.withholdingTax || 0));
 
   return (
     <div className="space-y-6">
@@ -272,13 +292,13 @@ export default function PaymentsPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => exportToCsv('payments', ['パートナー名', '金額', '税', '合計', '種別', '期間', 'ステータス', '支払日', '期限'], payments.map((p) => [p.partner.name, p.amount, p.tax, p.totalAmount, TYPE_LABELS[p.type] || p.type, p.period, STATUS_LABELS[p.status] || p.status, p.paidAt ? formatDate(p.paidAt) : '', p.dueDate ? formatDate(p.dueDate) : '']))}
+            onClick={() => exportToCsv('payments', ['パートナー名', '金額', '消費税', '税込合計', '源泉徴収', '差引支払額', '種別', '期間', 'ステータス', '支払日', '期限'], payments.map((p) => [p.partner.name, p.amount, p.tax, p.totalAmount, p.withholdingTax || 0, totalNet(p), TYPE_LABELS[p.type] || p.type, p.period, STATUS_LABELS[p.status] || p.status, p.paidAt ? formatDate(p.paidAt) : '', p.dueDate ? formatDate(p.dueDate) : '']))}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             CSV
           </button>
-          <Button onClick={() => setShowCreateModal(true)}>+ 新規支払い</Button>
+          {isManager && <Button onClick={() => setShowCreateModal(true)}>+ 新規支払い</Button>}
         </div>
       </div>
 
@@ -294,37 +314,26 @@ export default function PaymentsPage() {
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Select
-            options={[
-              { label: 'すべてのパートナー', value: '' },
-              ...partners.map((p) => ({ label: `${p.name}${p.company ? ` (${p.company})` : ''}`, value: p.id })),
-            ]}
+            options={[{ label: 'すべてのパートナー', value: '' }, ...partners.map((p) => ({ label: `${p.name}${p.company ? ` (${p.company})` : ''}`, value: p.id }))]}
             value={filterPartner}
             onChange={(e) => { setFilterPartner(e.target.value); setPage(1); }}
           />
           <Select
             options={[
               { label: 'すべてのステータス', value: '' },
-              { label: '下書き', value: 'DRAFT' },
-              { label: '申請中', value: 'PENDING' },
-              { label: '承認済', value: 'APPROVED' },
-              { label: '支払済', value: 'PAID' },
+              { label: '下書き', value: 'DRAFT' }, { label: '申請中', value: 'PENDING' },
+              { label: '承認済', value: 'APPROVED' }, { label: '支払済', value: 'PAID' },
+              { label: '取消', value: 'CANCELLED' },
             ]}
             value={filterStatus}
             onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
           />
-          <Input
-            type="month"
-            value={filterPeriod}
-            onChange={(e) => { setFilterPeriod(e.target.value); setPage(1); }}
-            placeholder="期間"
-          />
+          <Input type="month" value={filterPeriod} onChange={(e) => { setFilterPeriod(e.target.value); setPage(1); }} placeholder="期間" />
           <Select
             options={[
               { label: 'すべての種別', value: '' },
-              { label: '月額', value: 'MONTHLY' },
-              { label: '一括', value: 'ONE_TIME' },
-              { label: 'マイルストーン', value: 'MILESTONE' },
-              { label: 'その他', value: 'OTHER' },
+              { label: '給与', value: 'SALARY' }, { label: '請求書', value: 'INVOICE' },
+              { label: '手数料', value: 'COMMISSION' }, { label: '賞与', value: 'BONUS' },
             ]}
             value={filterType}
             onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
@@ -332,16 +341,33 @@ export default function PaymentsPage() {
         </div>
         {(filterPartner || filterStatus || filterPeriod || filterType) && (
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => { setFilterPartner(''); setFilterStatus(''); setFilterPeriod(''); setFilterType(''); setPage(1); }}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
+            <button type="button" onClick={() => { setFilterPartner(''); setFilterStatus(''); setFilterPeriod(''); setFilterType(''); setPage(1); }} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
               フィルターをリセット
             </button>
           </div>
         )}
       </div>
+
+      {/* Batch Actions */}
+      {selectedIds.size > 0 && isManager && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-blue-700">{selectedIds.size} 件選択中</span>
+          <div className="flex items-center gap-2">
+            <Select
+              options={[
+                { label: '一括操作を選択', value: '' },
+                { label: '一括申請 (DRAFT→PENDING)', value: 'PENDING' },
+                { label: '一括承認 (PENDING→APPROVED)', value: 'APPROVED' },
+                ...(isAdmin ? [{ label: '一括支払確定 (APPROVED→PAID)', value: 'PAID' }] : []),
+              ]}
+              value={batchAction || ''}
+              onChange={(e) => setBatchAction(e.target.value || null)}
+            />
+            <Button size="sm" disabled={!batchAction} loading={batchProcessing} onClick={handleBatchAction}>実行</Button>
+            <button onClick={() => setSelectedIds(new Set())} className="text-sm text-gray-500 hover:text-gray-700">解除</button>
+          </div>
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -358,10 +384,16 @@ export default function PaymentsPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  {isManager && (
+                    <th className="px-3 py-3 w-10">
+                      <input type="checkbox" checked={payments.length > 0 && selectedIds.size === payments.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">パートナー名</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">金額</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase hidden md:table-cell">税</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase hidden md:table-cell">消費税</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">合計</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">差引支払額</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden md:table-cell">種別</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">期間</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">ステータス</th>
@@ -371,24 +403,28 @@ export default function PaymentsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {payments.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-16 text-center text-sm text-gray-500">
-                      支払いデータはありません
-                    </td>
-                  </tr>
+                  <tr><td colSpan={11} className="px-4 py-16 text-center text-sm text-gray-500">支払いデータはありません</td></tr>
                 ) : (
                   payments.map((payment) => (
-                    <tr key={payment.id} className="hover:bg-gray-50">
+                    <tr key={payment.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/payments/${payment.id}`)}>
+                      {isManager && (
+                        <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                          <input type="checkbox" checked={selectedIds.has(payment.id)} onChange={() => toggleSelect(payment.id)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{payment.partner.name}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 text-right">{formatCurrency(payment.amount)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 text-right hidden md:table-cell">{formatCurrency(payment.tax)}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">{formatCurrency(payment.totalAmount)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700 text-center hidden md:table-cell">
-                        {TYPE_LABELS[payment.type] || payment.type}
+                      <td className="px-4 py-3 text-sm text-right hidden lg:table-cell">
+                        {payment.withholdingTax > 0 ? (
+                          <span className="text-green-600 font-medium">{formatCurrency(totalNet(payment))}</span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 text-center hidden lg:table-cell">
-                        {payment.period || '-'}
-                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 text-center hidden md:table-cell">{TYPE_LABELS[payment.type] || payment.type}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 text-center hidden lg:table-cell">{payment.period || '-'}</td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant={STATUS_VARIANTS[payment.status] || 'gray'} size="sm">
                           {STATUS_LABELS[payment.status] || payment.status}
@@ -398,17 +434,15 @@ export default function PaymentsPage() {
                         {payment.paidAt ? (
                           <span className="text-green-600">{formatDate(payment.paidAt)}</span>
                         ) : payment.dueDate ? (
-                          <span className={payment.status !== 'PAID' && new Date(payment.dueDate) < new Date() ? 'text-red-600 font-medium' : 'text-gray-700'}>
+                          <span className={payment.status !== 'PAID' && payment.status !== 'CANCELLED' && new Date(payment.dueDate) < new Date() ? 'text-red-600 font-medium' : 'text-gray-700'}>
                             {formatDate(payment.dueDate)}
-                            {payment.status !== 'PAID' && formatRelativeDate(payment.dueDate) && (
+                            {payment.status !== 'PAID' && payment.status !== 'CANCELLED' && formatRelativeDate(payment.dueDate) && (
                               <span className="text-xs ml-1">({formatRelativeDate(payment.dueDate)})</span>
                             )}
                           </span>
                         ) : '-'}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        {renderActions(payment)}
-                      </td>
+                      <td className="px-4 py-3 text-center">{renderActions(payment)}</td>
                     </tr>
                   ))
                 )}
@@ -425,14 +459,7 @@ export default function PaymentsPage() {
                 <span className="font-medium">{Math.min(page * pageSize, totalCount)}</span> 件
               </p>
               <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  前へ
-                </button>
+                <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">前へ</button>
                 {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
                   let pNum: number;
                   if (totalPages <= 7) pNum = i + 1;
@@ -440,28 +467,10 @@ export default function PaymentsPage() {
                   else if (page >= totalPages - 3) pNum = totalPages - 6 + i;
                   else pNum = page - 3 + i;
                   return (
-                    <button
-                      key={pNum}
-                      type="button"
-                      onClick={() => setPage(pNum)}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
-                        pNum === page
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'text-gray-600 bg-white border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {pNum}
-                    </button>
+                    <button key={pNum} type="button" onClick={() => setPage(pNum)} className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${pNum === page ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-600 bg-white border-gray-300 hover:bg-gray-50'}`}>{pNum}</button>
                   );
                 })}
-                <button
-                  type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  次へ
-                </button>
+                <button type="button" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">次へ</button>
               </div>
             </div>
           )}
@@ -485,67 +494,58 @@ export default function PaymentsPage() {
           <Select
             label="パートナー"
             required
-            options={[
-              { label: 'パートナーを選択', value: '' },
-              ...partners.map((p) => ({
-                label: `${p.name}${p.company ? ` (${p.company})` : ''}`,
-                value: p.id,
-              })),
-            ]}
+            options={[{ label: 'パートナーを選択', value: '' }, ...partners.map((p) => ({ label: `${p.name}${p.company ? ` (${p.company})` : ''}`, value: p.id }))]}
             value={newPayment.partnerId}
             onChange={(e) => setNewPayment({ ...newPayment, partnerId: e.target.value })}
           />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input
-              label="金額"
-              type="number"
-              required
-              value={newPayment.amount || ''}
-              onChange={(e) => handleAmountChange(e.target.value)}
-            />
-            <Input
-              label="税 (自動計算 10%)"
-              type="number"
-              value={newPayment.tax}
-              onChange={(e) => setNewPayment({ ...newPayment, tax: Number(e.target.value) || 0 })}
-            />
+            <Input label="報酬額" type="number" required value={newPayment.amount || ''} onChange={(e) => handleAmountChange(e.target.value)} />
+            <Input label="消費税 (自動計算 10%)" type="number" value={newPayment.tax} onChange={(e) => setNewPayment({ ...newPayment, tax: Number(e.target.value) || 0 })} />
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">合計</label>
-              <p className="text-lg font-bold text-gray-900 py-2">
-                {formatCurrency(newPayment.amount + newPayment.tax)}
-              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">税込合計</label>
+              <p className="text-lg font-bold text-gray-900 py-2">{formatCurrency(newPayment.amount + newPayment.tax)}</p>
             </div>
           </div>
+
+          {/* Withholding tax */}
+          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">源泉徴収</span>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newPayment.withholdingEnabled}
+                  onChange={(e) => handleWithholdingToggle(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-600">源泉徴収あり</span>
+              </label>
+            </div>
+            {newPayment.withholdingEnabled && (
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="源泉徴収税額" type="number" value={newPayment.withholdingTax} onChange={(e) => setNewPayment({ ...newPayment, withholdingTax: Number(e.target.value) || 0 })} />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">差引支払額</label>
+                  <p className="text-lg font-bold text-green-600 py-2">{formatCurrency(newPayment.amount + newPayment.tax - newPayment.withholdingTax)}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
               label="種別"
               options={[
-                { label: '月額', value: 'MONTHLY' },
-                { label: '一括', value: 'ONE_TIME' },
-                { label: 'マイルストーン', value: 'MILESTONE' },
-                { label: 'その他', value: 'OTHER' },
+                { label: '給与', value: 'SALARY' }, { label: '請求書', value: 'INVOICE' },
+                { label: '手数料', value: 'COMMISSION' }, { label: '賞与', value: 'BONUS' },
               ]}
               value={newPayment.type}
               onChange={(e) => setNewPayment({ ...newPayment, type: e.target.value })}
             />
-            <Input
-              label="期間"
-              type="month"
-              value={newPayment.period}
-              onChange={(e) => setNewPayment({ ...newPayment, period: e.target.value })}
-            />
-            <Input
-              label="支払期限"
-              type="date"
-              value={newPayment.dueDate}
-              onChange={(e) => setNewPayment({ ...newPayment, dueDate: e.target.value })}
-            />
+            <Input label="期間" type="month" value={newPayment.period} onChange={(e) => setNewPayment({ ...newPayment, period: e.target.value })} />
+            <Input label="支払期限" type="date" value={newPayment.dueDate} onChange={(e) => setNewPayment({ ...newPayment, dueDate: e.target.value })} />
           </div>
-          <Input
-            label="備考"
-            value={newPayment.note}
-            onChange={(e) => setNewPayment({ ...newPayment, note: e.target.value })}
-          />
+          <Input label="備考" value={newPayment.note} onChange={(e) => setNewPayment({ ...newPayment, note: e.target.value })} />
         </div>
       </Modal>
 

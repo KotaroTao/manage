@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
       businessId,
       amount,
       tax,
+      withholdingTax,
       type,
       period,
       dueDate,
@@ -147,6 +148,8 @@ export async function POST(request: NextRequest) {
 
     const taxAmount = parsedTax;
     const totalAmount = parsedAmount + taxAmount;
+    const parsedWithholdingTax = parseInt(String(withholdingTax ?? 0), 10) || 0;
+    const netAmount = totalAmount - parsedWithholdingTax;
 
     const payment = await prisma.payment.create({
       data: {
@@ -157,6 +160,8 @@ export async function POST(request: NextRequest) {
         amount: parsedAmount,
         tax: taxAmount,
         totalAmount,
+        withholdingTax: parsedWithholdingTax,
+        netAmount,
         type,
         status: "DRAFT",
         period: period || null,

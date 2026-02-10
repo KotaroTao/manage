@@ -32,6 +32,7 @@ model User {
   createdActivityNotes       ActivityNote[]
   assignedWorkflowSteps      WorkflowStep[]     @relation("StepAssignee")
   assignedTasks              Task[]             @relation("TaskAssignee")
+  paymentComments            PaymentComment[]
 
   @@index([email])
   @@index([role, isActive])
@@ -360,11 +361,14 @@ model Payment {
   amount             Int
   tax                Int           @default(0)
   totalAmount        Int
+  withholdingTax     Int           @default(0)
+  netAmount          Int?
   type               PaymentType   @default(SALARY)
   status             PaymentStatus @default(DRAFT)
   period             String?
   dueDate            DateTime?
   paidAt             DateTime?
+  adjustmentReason   String?
   note               String?
   deletedAt          DateTime?
   createdAt          DateTime      @default(now())
@@ -373,10 +377,24 @@ model Payment {
   partner          Partner           @relation(fields: [partnerId], references: [id])
   workflow         Workflow?         @relation(fields: [workflowId], references: [id])
   customerBusiness CustomerBusiness? @relation(fields: [customerBusinessId], references: [id])
+  comments         PaymentComment[]
 
   @@index([partnerId, status])
   @@index([status, dueDate])
   @@index([period])
+}
+
+model PaymentComment {
+  id        String   @id @default(uuid())
+  paymentId String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([paymentId, createdAt])
 }
 
 enum PaymentType {
@@ -391,6 +409,7 @@ enum PaymentStatus {
   PENDING
   APPROVED
   PAID
+  CANCELLED
 }
 
 // ============================================================
