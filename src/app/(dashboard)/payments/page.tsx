@@ -193,7 +193,7 @@ export default function PaymentsPage() {
       const body: Record<string, string> = { status: newStatus };
       if (newStatus === 'PAID') body.paidAt = new Date().toISOString();
       const res = await fetch(`/api/payments/${paymentId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });

@@ -187,7 +187,7 @@ export default function TasksPage() {
     e.stopPropagation();
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'DONE', completedAt: new Date().toISOString() }),
       });
@@ -204,7 +204,7 @@ export default function TasksPage() {
       const body: Record<string, string> = { status: newStatus };
       if (newStatus === 'DONE') body.completedAt = new Date().toISOString();
       const res = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });

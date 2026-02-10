@@ -169,7 +169,7 @@ export default function PartnerDetailPage() {
     setSaving(true);
     try {
       const res = await fetch(`/api/partners/${partnerId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
       });
