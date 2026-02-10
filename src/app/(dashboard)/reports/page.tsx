@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getApiError } from '@/lib/utils';
 
 interface BusinessCustomerCount {
   businessName: string;
@@ -44,7 +44,7 @@ export default function ReportsPage() {
     setError(null);
     try {
       const res = await fetch('/api/reports');
-      if (!res.ok) throw new Error('レポートデータの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'レポートデータの取得に失敗しました'));
       const json = await res.json();
       setData(json.data);
     } catch (err) {

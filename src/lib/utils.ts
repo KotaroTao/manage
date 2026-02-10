@@ -115,3 +115,16 @@ export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
   return str.slice(0, maxLength - 1) + "\u2026";
 }
+
+/**
+ * Extract an error message from a failed fetch Response.
+ * Reads the JSON body's `error` field, falling back to a generic message with status code.
+ */
+export async function getApiError(res: Response, fallback: string): Promise<string> {
+  try {
+    const json = await res.json();
+    return json.error || `${fallback} (${res.status})`;
+  } catch {
+    return `${fallback} (${res.status})`;
+  }
+}

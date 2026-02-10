@@ -6,7 +6,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatDate, isOverdue, isApproaching } from '@/lib/utils';
+import { formatDate, isOverdue, isApproaching, getApiError } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
 
 /* -------------------------------------------------------------------------- */
@@ -143,7 +143,7 @@ export default function TasksPage() {
       if (filterDateTo) params.set('dueDateTo', filterDateTo);
 
       const res = await fetch(`/api/tasks?${params.toString()}`);
-      if (!res.ok) throw new Error('タスクの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'タスクの取得に失敗しました'));
       const json: PaginatedResponse<TaskItem> = await res.json();
       setTasks(json.data);
       setTotalPages(json.pagination.totalPages);
@@ -191,7 +191,7 @@ export default function TasksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'DONE', completedAt: new Date().toISOString() }),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('タスクを完了にしました', 'success');
       fetchTasks();
     } catch (err) {
@@ -208,7 +208,7 @@ export default function TasksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('ステータスを更新しました', 'success');
       fetchTasks();
     } catch (err) {
@@ -228,7 +228,7 @@ export default function TasksPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newTask, status: 'PENDING' }),
       });
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '作成に失敗しました'));
       showToast('タスクを作成しました', 'success');
       setShowCreateModal(false);
       setNewTask({ title: '', description: '', customerBusinessId: '', businessId: '', assigneeId: '', dueDate: '', priority: 'MEDIUM' });

@@ -143,3 +143,70 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     );
   }
 }
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
+      return NextResponse.json(
+        { error: "Forbidden: Admin or Manager only" },
+        { status: 403 },
+      );
+    }
+
+    const { id } = await context.params;
+
+    const existing = await prisma.workflow.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
+    }
+
+    if (existing.status === "COMPLETED") {
+      return NextResponse.json(
+        { error: "Cannot cancel a completed workflow" },
+        { status: 400 },
+      );
+    }
+
+    const updated = await prisma.workflow.update({
+      where: { id },
+      data: {
+        status: "CANCELLED",
+        completedAt: new Date(),
+      },
+    });
+
+    await writeAuditLog({
+      userId: user.id,
+      action: "DELETE",
+      entity: "Workflow",
+      entityId: id,
+      before: { status: existing.status },
+      after: { status: updated.status },
+      request,
+    });
+
+    await createDataVersion({
+      entity: "Workflow",
+      entityId: id,
+      data: updated,
+      changedBy: user.id,
+      changeType: "DELETE",
+    });
+
+    return NextResponse.json({ data: null, message: "Workflow cancelled" });
+  } catch (error) {
+    console.error("Workflow DELETE error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}

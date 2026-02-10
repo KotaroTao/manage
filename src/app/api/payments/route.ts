@@ -38,6 +38,27 @@ export async function GET(request: NextRequest) {
       prisma.payment.count({ where }),
     ]);
 
+    // Summary aggregation (not affected by pagination)
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+    const [paidThisMonth, statusCounts] = await Promise.all([
+      prisma.payment.aggregate({
+        where: { deletedAt: null, period: thisMonth, status: "PAID" },
+        _sum: { totalAmount: true },
+      }),
+      prisma.payment.groupBy({
+        by: ["status"],
+        where: { deletedAt: null },
+        _count: true,
+      }),
+    ]);
+
+    const countByStatus: Record<string, number> = {};
+    for (const row of statusCounts) {
+      countByStatus[row.status] = row._count;
+    }
+
     return NextResponse.json({
       data: payments,
       pagination: {
@@ -45,6 +66,12 @@ export async function GET(request: NextRequest) {
         perPage,
         total,
         totalPages: Math.ceil(total / perPage),
+      },
+      summary: {
+        totalThisMonth: paidThisMonth._sum.totalAmount ?? 0,
+        pendingCount: countByStatus["PENDING"] ?? 0,
+        paidCount: countByStatus["PAID"] ?? 0,
+        draftCount: countByStatus["DRAFT"] ?? 0,
       },
     });
   } catch (error) {

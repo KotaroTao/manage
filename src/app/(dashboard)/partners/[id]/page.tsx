@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardBody } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, getApiError } from '@/lib/utils';
 import type { PartnerFormData } from '@/types';
 
 interface PartnerDetail {
@@ -113,7 +113,7 @@ export default function PartnerDetailPage() {
     setError(null);
     try {
       const res = await fetch(`/api/partners/${partnerId}`);
-      if (!res.ok) throw new Error('パートナー情報の取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'パートナー情報の取得に失敗しました'));
       const json = await res.json();
       setPartner(json.data);
       setEditForm({
@@ -173,7 +173,7 @@ export default function PartnerDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('パートナー情報を更新しました', 'success');
       setShowEditModal(false);
       fetchPartner();

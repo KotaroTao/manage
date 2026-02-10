@@ -7,7 +7,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getApiError } from '@/lib/utils';
 import type { PaginatedResponse, PartnerFormData } from '@/types';
 
 interface Partner {
@@ -103,7 +103,7 @@ export default function PartnersPage() {
       if (filterContractType) params.set('contractType', filterContractType);
 
       const res = await fetch(`/api/partners?${params.toString()}`);
-      if (!res.ok) throw new Error('データの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'データの取得に失敗しました'));
       const json: PaginatedResponse<Partner> = await res.json();
       setPartners(json.data);
       setTotalPages(json.pagination.totalPages);
@@ -135,7 +135,7 @@ export default function PartnersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error('作成に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, '作成に失敗しました'));
       showToast('パートナーを作成しました', 'success');
       setShowCreateModal(false);
       setForm({

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { getApiError } from '@/lib/utils';
 
 interface WorkflowTemplate {
   id: string;
@@ -38,7 +39,7 @@ export default function WorkflowTemplatesPage() {
       const params = new URLSearchParams();
       if (filterBusiness) params.set('businessId', filterBusiness);
       const res = await fetch(`/api/workflows/templates?${params.toString()}`);
-      if (!res.ok) throw new Error('テンプレートの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'テンプレートの取得に失敗しました'));
       const json = await res.json();
       setTemplates(json.data || []);
     } catch (err) {

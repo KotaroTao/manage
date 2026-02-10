@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDate, formatCurrency, getApiError } from '@/lib/utils';
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                      */
@@ -299,7 +299,7 @@ export default function DashboardPage() {
     setError(null);
     try {
       const res = await fetch('/api/dashboard');
-      if (!res.ok) throw new Error('データの取得に失敗しました');
+      if (!res.ok) throw new Error(await getApiError(res, 'データの取得に失敗しました'));
       const json = await res.json();
       setData(json.data || json);
       setShowAlert(true);
