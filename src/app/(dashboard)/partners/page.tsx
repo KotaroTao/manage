@@ -7,7 +7,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatCurrency, getApiError } from '@/lib/utils';
+import { formatCurrency, getApiError, exportToCsv } from '@/lib/utils';
 import type { PaginatedResponse, PartnerFormData } from '@/types';
 
 interface Partner {
@@ -185,9 +185,19 @@ export default function PartnersPage() {
             登録パートナーの管理・検索
           </p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>
-          + 新規パートナー
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => exportToCsv('partners', ['パートナー名', '会社名', 'メール', '電話番号', '専門分野', '契約形態', '単価', 'ステータス'], partners.map((p) => [p.name, p.company, p.email, p.phone, p.specialty, p.contractType === 'CONTRACT' ? '業務委託' : p.contractType === 'DISPATCH' ? '派遣' : 'その他', p.rate, p.status === 'ACTIVE' ? '有効' : '無効']))}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            CSV
+          </button>
+          <Button onClick={() => setShowCreateModal(true)}>
+            + 新規パートナー
+          </Button>
+        </div>
       </div>
 
       {/* Search & Filter bar */}

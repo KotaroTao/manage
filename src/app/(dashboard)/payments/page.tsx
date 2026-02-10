@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/card';
 import { Modal, ConfirmModal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatCurrency, formatDate, formatRelativeDate, getApiError } from '@/lib/utils';
+import { formatCurrency, formatDate, formatRelativeDate, getApiError, exportToCsv } from '@/lib/utils';
 import type { PaginatedResponse } from '@/types';
 
 interface Payment {
@@ -269,7 +269,17 @@ export default function PaymentsPage() {
           <h1 className="text-2xl font-bold text-gray-900">支払い管理</h1>
           <p className="mt-1 text-sm text-gray-500">パートナーへの支払いの管理・承認</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>+ 新規支払い</Button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => exportToCsv('payments', ['パートナー名', '金額', '税', '合計', '種別', '期間', 'ステータス', '支払日', '期限'], payments.map((p) => [p.partner.name, p.amount, p.tax, p.totalAmount, TYPE_LABELS[p.type] || p.type, p.period, STATUS_LABELS[p.status] || p.status, p.paidAt ? formatDate(p.paidAt) : '', p.dueDate ? formatDate(p.dueDate) : '']))}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            CSV
+          </button>
+          <Button onClick={() => setShowCreateModal(true)}>+ 新規支払い</Button>
+        </div>
       </div>
 
       {/* Summary cards */}

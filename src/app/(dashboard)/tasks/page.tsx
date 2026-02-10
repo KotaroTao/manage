@@ -6,7 +6,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
-import { formatDate, formatRelativeDate, isOverdue, isApproaching, getApiError } from '@/lib/utils';
+import { formatDate, formatRelativeDate, isOverdue, isApproaching, getApiError, exportToCsv } from '@/lib/utils';
 import { useAuth } from '@/contexts/auth-context';
 import type { PaginatedResponse } from '@/types';
 
@@ -293,7 +293,17 @@ export default function TasksPage() {
           <h1 className="text-2xl font-bold text-gray-900">タスク管理</h1>
           <p className="mt-1 text-sm text-gray-500">タスク・ワークフローステップの統合管理</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>+ 新規タスク</Button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => exportToCsv('tasks', ['タイトル', '顧客名', '事業', '担当者', '優先度', 'ステータス', '期限', '完了日'], tasks.map((t) => [t.title, t.customerBusiness?.customer.name, t.customerBusiness?.business.name || t.business?.name, t.assignee.name, t.priority, t.status, formatDate(t.dueDate), t.completedAt ? formatDate(t.completedAt) : '']))}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            CSV
+          </button>
+          <Button onClick={() => setShowCreateModal(true)}>+ 新規タスク</Button>
+        </div>
       </div>
 
       {/* View toggle */}
