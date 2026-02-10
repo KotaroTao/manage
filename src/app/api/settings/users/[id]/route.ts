@@ -178,7 +178,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       request,
     });
 
-    return NextResponse.json({ message: "User deactivated", id });
+    return NextResponse.json({ data: null, message: "User deactivated" });
   } catch (error) {
     console.error("User DELETE error:", error);
     return NextResponse.json(

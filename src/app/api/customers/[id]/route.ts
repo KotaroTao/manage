@@ -154,7 +154,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       request,
     });
 
-    return NextResponse.json({ message: "Customer deleted", id });
+    return NextResponse.json({ data: null, message: "Customer deleted" });
   } catch (error) {
     console.error("Customer DELETE error:", error);
     return NextResponse.json(

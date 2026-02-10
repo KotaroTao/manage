@@ -188,7 +188,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       request,
     });
 
-    return NextResponse.json({ message: "Payment deleted", id });
+    return NextResponse.json({ data: null, message: "Payment deleted" });
   } catch (error) {
     console.error("Payment DELETE error:", error);
     return NextResponse.json(

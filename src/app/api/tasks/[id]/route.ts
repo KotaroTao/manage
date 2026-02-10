@@ -143,7 +143,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       request,
     });
 
-    return NextResponse.json({ message: "Task deleted", id });
+    return NextResponse.json({ data: null, message: "Task deleted" });
   } catch (error) {
     console.error("Task DELETE error:", error);
     return NextResponse.json(

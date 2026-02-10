@@ -132,7 +132,7 @@ export async function DELETE(request: NextRequest) {
       request,
     });
 
-    return NextResponse.json({ message: "Tag deleted", id });
+    return NextResponse.json({ data: null, message: "Tag deleted" });
   } catch (error) {
     console.error("Tag DELETE error:", error);
     return NextResponse.json(
