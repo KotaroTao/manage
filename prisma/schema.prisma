@@ -402,6 +402,10 @@ enum PaymentType {
   INVOICE
   COMMISSION
   BONUS
+  MONTHLY
+  ONE_TIME
+  MILESTONE
+  OTHER
 }
 
 enum PaymentStatus {
