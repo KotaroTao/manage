@@ -10,7 +10,8 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ["PENDING"],
   PENDING: ["APPROVED"],
   APPROVED: ["PAID"],
-  PAID: [],
+  PAID: ["CANCELLED"],
+  CANCELLED: [],
 };
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -30,13 +31,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
         ...(access && { partnerId: access.partnerId }),
       },
       include: {
-        partner: { select: { id: true, name: true, company: true } },
+        partner: { select: { id: true, name: true, company: true, bankName: true, bankBranch: true, bankAccountType: true, bankAccountNumber: true, bankAccountHolder: true } },
         workflow: { select: { id: true, status: true } },
         customerBusiness: {
           include: {
             customer: { select: { id: true, name: true } },
             business: { select: { id: true, name: true } },
           },
+        },
+        comments: {
+          include: {
+            user: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: "desc" },
         },
       },
     });
@@ -78,7 +85,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const body = await request.json();
-    const { status, amount, tax, type, period, dueDate, note } = body;
+    const { status, amount, tax, withholdingTax, type, period, dueDate, note, adjustmentReason } = body;
 
     // Validate status transition
     if (status && status !== existing.status) {
@@ -86,7 +93,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       if (!allowed.includes(status)) {
         return NextResponse.json(
           {
-            error: `Invalid status transition from ${existing.status} to ${status}. Allowed: ${allowed.join(", ") || "none"}`,
+            error: `ステータス遷移 ${existing.status} → ${status} は許可されていません。許可: ${allowed.join(", ") || "なし"}`,
           },
           { status: 400 },
         );
@@ -94,23 +101,43 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
       // Role checks for status transitions
       if (status === "APPROVED" && user.role !== "ADMIN" && user.role !== "MANAGER") {
-        return NextResponse.json({ error: "Forbidden: Manager role required to approve payments" }, { status: 403 });
+        return NextResponse.json({ error: "Forbidden: 承認にはManager権限が必要です" }, { status: 403 });
       }
       if (status === "PAID" && user.role !== "ADMIN") {
-        return NextResponse.json({ error: "Forbidden: Admin role required to mark payments as paid" }, { status: 403 });
+        return NextResponse.json({ error: "Forbidden: 支払確定にはAdmin権限が必要です" }, { status: 403 });
+      }
+      if (status === "CANCELLED" && user.role !== "ADMIN") {
+        return NextResponse.json({ error: "Forbidden: 取消にはAdmin権限が必要です" }, { status: 403 });
+      }
+    }
+
+    // PAID状態での金額変更は理由が必須
+    if (existing.status === "PAID" && !status && (amount !== undefined || tax !== undefined || withholdingTax !== undefined)) {
+      if (!adjustmentReason || !adjustmentReason.trim()) {
+        return NextResponse.json(
+          { error: "支払済の金額変更には理由(adjustmentReason)が必須です" },
+          { status: 400 },
+        );
       }
     }
 
     const updateData: Record<string, unknown> = {};
     if (status !== undefined) updateData.status = status;
-    if (amount !== undefined) {
-      updateData.amount = amount;
-      updateData.totalAmount = amount + (tax ?? existing.tax);
+
+    // Amount updates (always recalculate totals)
+    const newAmount = amount ?? existing.amount;
+    const newTax = tax ?? existing.tax;
+    const newWithholdingTax = withholdingTax ?? existing.withholdingTax;
+
+    if (amount !== undefined || tax !== undefined || withholdingTax !== undefined) {
+      updateData.amount = newAmount;
+      updateData.tax = newTax;
+      updateData.totalAmount = newAmount + newTax;
+      updateData.withholdingTax = newWithholdingTax;
+      updateData.netAmount = newAmount + newTax - newWithholdingTax;
     }
-    if (tax !== undefined) {
-      updateData.tax = tax;
-      updateData.totalAmount = (amount ?? existing.amount) + tax;
-    }
+
+    if (adjustmentReason !== undefined) updateData.adjustmentReason = adjustmentReason;
     if (type !== undefined) updateData.type = type;
     if (period !== undefined) updateData.period = period || null;
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
@@ -131,7 +158,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     await writeAuditLog({
       userId: user.id,
-      action: "UPDATE",
+      action: status === "CANCELLED" ? "CANCEL" : "UPDATE",
       entity: "Payment",
       entityId: id,
       before: existing,
@@ -144,7 +171,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       entityId: id,
       data: updated,
       changedBy: user.id,
-      changeType: "UPDATE",
+      changeType: status === "CANCELLED" ? "CANCEL" : "UPDATE",
     });
 
     return NextResponse.json({ data: updated });
@@ -180,7 +207,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     if (existing.status !== "DRAFT") {
       return NextResponse.json(
-        { error: "Only DRAFT payments can be deleted" },
+        { error: "下書き状態の支払いのみ削除できます" },
         { status: 400 },
       );
     }
