@@ -191,7 +191,7 @@ function OverviewTab({
     setSaving(true);
     try {
       const res = await fetch(`/api/customers/${detail.customer.id}/businesses/${detail.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customFields: fieldValues }),
       });
@@ -210,7 +210,7 @@ function OverviewTab({
     setSaving(true);
     try {
       const res = await fetch(`/api/customers/${detail.customer.id}/businesses/${detail.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contractStartDate: metaForm.contractStartDate || null,
@@ -1267,7 +1267,7 @@ export default function CustomerBusinessDetailPage() {
     setSavingNextAction(true);
     try {
       const res = await fetch(`/api/customers/${customerId}/businesses/${cbId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nextActionDate: nextActionDate || null }),
       });

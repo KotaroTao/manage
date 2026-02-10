@@ -172,7 +172,7 @@ export default function BusinessDetailPage() {
     setSaving(true);
     try {
       const res = await fetch(`/api/businesses/${businessId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editForm.name,
@@ -182,7 +182,10 @@ export default function BusinessDetailPage() {
           colorCode: editForm.colorCode,
         }),
       });
-      if (!res.ok) throw new Error('更新に失敗しました');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error || `更新に失敗しました (${res.status})`);
+      }
       showToast('事業情報を更新しました', 'success');
       setShowEdit(false);
       fetchAll();

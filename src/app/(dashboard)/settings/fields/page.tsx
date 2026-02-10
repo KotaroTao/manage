@@ -165,7 +165,7 @@ export default function FieldsSettingsPage() {
         body.options = editForm.options.split(',').map((o) => o.trim()).filter(Boolean);
       }
       const res = await fetch(`/api/settings/fields/${editingField.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });

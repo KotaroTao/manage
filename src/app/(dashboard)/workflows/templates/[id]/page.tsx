@@ -168,7 +168,7 @@ export default function TemplateEditorPage() {
     if (!confirm('このテンプレートを無効化しますか？')) return;
     try {
       const res = await fetch(`/api/workflows/templates/${templateId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: false }),
       });

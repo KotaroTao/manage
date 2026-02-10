@@ -148,7 +148,7 @@ function EditCustomerModal({
     setSubmitting(true);
     try {
       const res = await fetch(`/api/customers/${customer.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name,

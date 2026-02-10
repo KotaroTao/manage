@@ -120,7 +120,7 @@ export default function UsersSettingsPage() {
     setSaving(true);
     try {
       const res = await fetch(`/api/settings/users/${editingUser.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
       });
@@ -139,7 +139,7 @@ export default function UsersSettingsPage() {
     if (!confirm('このユーザーを無効化しますか？')) return;
     try {
       const res = await fetch(`/api/settings/users/${userId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: false }),
       });
