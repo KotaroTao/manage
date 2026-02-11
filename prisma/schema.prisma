@@ -153,7 +153,7 @@ model PartnerBusiness {
   permissions String[] @default([])
   canEdit     Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
 
   partner  Partner  @relation(fields: [partnerId], references: [id])
   business Business @relation(fields: [businessId], references: [id])
