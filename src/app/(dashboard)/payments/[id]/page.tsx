@@ -12,7 +12,7 @@ import { formatCurrency, formatDate, getApiError } from '@/lib/utils';
 
 interface PaymentDetail {
   id: string;
-  partnerId: string;
+  partnerId: string | null;
   partner: {
     id: string;
     name: string;
@@ -22,13 +22,20 @@ interface PaymentDetail {
     bankAccountType: string | null;
     bankAccountNumber: string | null;
     bankAccountHolder: string | null;
-  };
+  } | null;
+  categoryId: string | null;
+  category: {
+    id: string;
+    name: string;
+    parentId: string | null;
+    parent: { id: string; name: string } | null;
+  } | null;
   amount: number;
   tax: number;
   totalAmount: number;
   withholdingTax: number;
   netAmount: number | null;
-  type: string;
+  type: string | null;
   status: string;
   period: string | null;
   dueDate: string | null;
@@ -43,6 +50,13 @@ interface PaymentDetail {
   comments: Comment[];
   createdAt: string;
   updatedAt: string;
+}
+
+interface ExpenseCategory {
+  id: string;
+  name: string;
+  parentId: string | null;
+  children: { id: string; name: string }[];
 }
 
 interface Comment {
@@ -90,9 +104,12 @@ export default function PaymentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'detail' | 'comments' | 'history'>('detail');
 
+  // Categories
+  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+
   // Edit state
   const [editing, setEditing] = useState(false);
-  const [editData, setEditData] = useState({ amount: 0, tax: 0, withholdingTax: 0, note: '', dueDate: '', period: '', type: '', adjustmentReason: '' });
+  const [editData, setEditData] = useState({ amount: 0, tax: 0, withholdingTax: 0, note: '', dueDate: '', period: '', type: '', categoryId: '', adjustmentReason: '' });
   const [saving, setSaving] = useState(false);
 
   // Comment state
@@ -128,10 +145,21 @@ export default function PaymentDetailPage() {
     } catch { /* ignore */ }
   }, [id]);
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings/expense-categories');
+      if (res.ok) {
+        const json = await res.json();
+        setCategories(json.data || []);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchPayment();
     fetchHistory();
-  }, [fetchPayment, fetchHistory]);
+    fetchCategories();
+  }, [fetchPayment, fetchHistory, fetchCategories]);
 
   const startEditing = () => {
     if (!payment) return;
@@ -142,7 +170,8 @@ export default function PaymentDetailPage() {
       note: payment.note || '',
       dueDate: payment.dueDate ? payment.dueDate.slice(0, 10) : '',
       period: payment.period || '',
-      type: payment.type,
+      type: payment.type || '',
+      categoryId: payment.categoryId || '',
       adjustmentReason: '',
     });
     setEditing(true);
@@ -189,7 +218,8 @@ export default function PaymentDetailPage() {
           note: editData.note,
           dueDate: editData.dueDate || null,
           period: editData.period || null,
-          type: editData.type,
+          type: editData.type || null,
+          categoryId: editData.categoryId || null,
           ...(editData.adjustmentReason && { adjustmentReason: editData.adjustmentReason }),
         }),
       });
@@ -272,8 +302,15 @@ export default function PaymentDetailPage() {
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{payment.partner.name} への支払い</h1>
-            <p className="text-sm text-gray-500">{payment.partner.company || ''} / {TYPE_LABELS[payment.type] || payment.type} / {payment.period || '期間未設定'}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{payment.partner ? `${payment.partner.name} への支払い` : '支払い詳細'}</h1>
+            <p className="text-sm text-gray-500">
+              {[
+                payment.partner?.company,
+                payment.category ? (payment.category.parent ? `${payment.category.parent.name} > ${payment.category.name}` : payment.category.name) : null,
+                payment.type ? (TYPE_LABELS[payment.type] || payment.type) : null,
+                payment.period || '期間未設定',
+              ].filter(Boolean).join(' / ')}
+            </p>
           </div>
         </div>
         <Badge variant={STATUS_VARIANTS[payment.status] || 'gray'} size="lg">
@@ -347,7 +384,16 @@ export default function PaymentDetailPage() {
               </div>
             )}
             <div className="grid grid-cols-2 gap-4 text-sm pt-2 border-t border-gray-100">
-              <div><span className="text-gray-500">種別</span><p className="font-medium">{TYPE_LABELS[payment.type] || payment.type}</p></div>
+              {payment.category && (
+                <div className="col-span-2">
+                  <span className="text-gray-500">経費カテゴリ</span>
+                  <p className="font-medium">
+                    {payment.category.parent && <span className="text-gray-500">{payment.category.parent.name} &gt; </span>}
+                    {payment.category.name}
+                  </p>
+                </div>
+              )}
+              <div><span className="text-gray-500">種別</span><p className="font-medium">{payment.type ? (TYPE_LABELS[payment.type] || payment.type) : '-'}</p></div>
               <div><span className="text-gray-500">期間</span><p className="font-medium">{payment.period || '-'}</p></div>
               <div><span className="text-gray-500">支払期限</span><p className="font-medium">{payment.dueDate ? formatDate(payment.dueDate) : '-'}</p></div>
               <div><span className="text-gray-500">支払日</span><p className="font-medium">{payment.paidAt ? formatDate(payment.paidAt) : '-'}</p></div>
@@ -357,6 +403,7 @@ export default function PaymentDetailPage() {
 
           {/* Partner Info */}
           <div className="space-y-6">
+            {payment.partner && (
             <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
               <h2 className="text-lg font-semibold text-gray-900">パートナー情報</h2>
               <div className="text-sm space-y-2">
@@ -374,6 +421,7 @@ export default function PaymentDetailPage() {
                 </div>
               )}
             </div>
+            )}
             {payment.customerBusiness && (
               <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-2">
                 <h2 className="text-lg font-semibold text-gray-900">関連情報</h2>
@@ -427,38 +475,130 @@ export default function PaymentDetailPage() {
       )}
 
       {activeTab === 'history' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {history.length === 0 ? (
             <p className="text-center text-sm text-gray-400 py-8">変更履歴はありません</p>
           ) : (
             history.map((h) => {
               const before = h.before as Record<string, unknown> | null;
               const after = h.after as Record<string, unknown> | null;
+              const isCreate = h.action === 'CREATE';
+
+              // 変更差分を検出
+              const changes: { label: string; before: string; after: string }[] = [];
+              if (before && after) {
+                const fieldDefs: { key: string; label: string; format: (v: unknown) => string }[] = [
+                  { key: 'status', label: 'ステータス', format: (v) => STATUS_LABELS[String(v)] || String(v) },
+                  { key: 'amount', label: '報酬額', format: (v) => formatCurrency(Number(v)) },
+                  { key: 'tax', label: '消費税', format: (v) => formatCurrency(Number(v)) },
+                  { key: 'totalAmount', label: '税込合計', format: (v) => formatCurrency(Number(v)) },
+                  { key: 'withholdingTax', label: '源泉徴収税', format: (v) => Number(v) ? formatCurrency(Number(v)) : 'なし' },
+                  { key: 'netAmount', label: '差引支払額', format: (v) => v != null ? formatCurrency(Number(v)) : '-' },
+                  { key: 'type', label: '種別', format: (v) => TYPE_LABELS[String(v)] || String(v) },
+                  { key: 'period', label: '期間', format: (v) => v ? String(v) : '-' },
+                  { key: 'dueDate', label: '支払期限', format: (v) => v ? formatDate(String(v)) : '-' },
+                  { key: 'paidAt', label: '支払日', format: (v) => v ? formatDate(String(v)) : '-' },
+                  { key: 'note', label: '備考', format: (v) => v ? String(v) : '-' },
+                ];
+                for (const f of fieldDefs) {
+                  const bv = before[f.key];
+                  const av = after[f.key];
+                  if (String(bv ?? '') !== String(av ?? '')) {
+                    changes.push({ label: f.label, before: f.format(bv), after: f.format(av) });
+                  }
+                }
+              }
+
+              // CREATE時は初期値を表示
+              const createFields: { label: string; value: string }[] = [];
+              if (isCreate && after) {
+                createFields.push(
+                  { label: 'ステータス', value: STATUS_LABELS[String(after.status)] || String(after.status) },
+                  { label: '報酬額', value: formatCurrency(Number(after.amount)) },
+                  { label: '消費税', value: formatCurrency(Number(after.tax)) },
+                  { label: '税込合計', value: formatCurrency(Number(after.totalAmount)) },
+                  { label: '種別', value: TYPE_LABELS[String(after.type)] || String(after.type) },
+                );
+                if (after.period) createFields.push({ label: '期間', value: String(after.period) });
+                if (after.dueDate) createFields.push({ label: '支払期限', value: formatDate(String(after.dueDate)) });
+                if (Number(after.withholdingTax)) createFields.push({ label: '源泉徴収税', value: formatCurrency(Number(after.withholdingTax)) });
+                if (after.note) createFields.push({ label: '備考', value: String(after.note) });
+              }
+
+              // 変更理由
+              const reason = after?.adjustmentReason && (!before || String(before.adjustmentReason || '') !== String(after.adjustmentReason || ''))
+                ? String(after.adjustmentReason)
+                : null;
+
+              const actionVariant: Record<string, 'gray' | 'info' | 'success' | 'warning' | 'danger'> = {
+                CREATE: 'info', UPDATE: 'warning', CANCEL: 'danger', SOFT_DELETE: 'danger', BATCH_UPDATE: 'warning',
+              };
+
               return (
-                <div key={h.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="gray" size="sm">{ACTION_LABELS[h.action] || h.action}</Badge>
-                      <span className="text-sm font-medium text-gray-900">{h.userName}</span>
+                <div key={h.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <Badge variant={actionVariant[h.action] || 'gray'} size="sm">{ACTION_LABELS[h.action] || h.action}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        <span className="text-sm font-semibold text-gray-900">{h.userName}</span>
+                      </div>
                     </div>
-                    <span className="text-xs text-gray-400">{formatDate(h.createdAt)}</span>
+                    <span className="text-xs text-gray-500">{formatDate(h.createdAt)}</span>
                   </div>
-                  {before && after && (
-                    <div className="text-xs text-gray-500 space-y-1">
-                      {before.status !== after.status && (
-                        <p>ステータス: {STATUS_LABELS[String(before.status)] || String(before.status)} → {STATUS_LABELS[String(after.status)] || String(after.status)}</p>
-                      )}
-                      {before.amount !== after.amount && (
-                        <p>金額: {formatCurrency(Number(before.amount))} → {formatCurrency(Number(after.amount))}</p>
-                      )}
-                      {before.totalAmount !== after.totalAmount && (
-                        <p>合計: {formatCurrency(Number(before.totalAmount))} → {formatCurrency(Number(after.totalAmount))}</p>
-                      )}
-                      {String(before.adjustmentReason || '') !== String(after.adjustmentReason || '') && !!after.adjustmentReason && (
-                        <p className="text-amber-600">変更理由: {String(after.adjustmentReason)}</p>
-                      )}
-                    </div>
-                  )}
+
+                  {/* Body */}
+                  <div className="px-5 py-3">
+                    {/* CREATE: 初期値一覧 */}
+                    {isCreate && createFields.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                        {createFields.map((f, i) => (
+                          <div key={i}>
+                            <span className="text-gray-400 text-xs">{f.label}</span>
+                            <p className="text-gray-900 font-medium">{f.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* UPDATE/CANCEL: 変更差分テーブル */}
+                    {!isCreate && changes.length > 0 && (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-xs text-gray-400">
+                            <th className="text-left font-medium pb-2 pr-4 w-28">項目</th>
+                            <th className="text-left font-medium pb-2 pr-2">変更前</th>
+                            <th className="text-center font-medium pb-2 w-8"></th>
+                            <th className="text-left font-medium pb-2">変更後</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {changes.map((c, i) => (
+                            <tr key={i}>
+                              <td className="py-1.5 pr-4 text-gray-500 font-medium">{c.label}</td>
+                              <td className="py-1.5 pr-2 text-red-600 bg-red-50/50 px-2 rounded-l">{c.before}</td>
+                              <td className="py-1.5 text-center text-gray-300">→</td>
+                              <td className="py-1.5 text-green-700 bg-green-50/50 px-2 rounded-r font-medium">{c.after}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+
+                    {/* 変更なし */}
+                    {!isCreate && changes.length === 0 && (
+                      <p className="text-xs text-gray-400">変更内容の詳細は記録されていません</p>
+                    )}
+
+                    {/* 変更理由 */}
+                    {reason && (
+                      <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <p className="text-xs font-medium text-amber-700">変更理由</p>
+                        <p className="text-sm text-amber-800">{reason}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })
@@ -514,12 +654,27 @@ export default function PaymentDetailPage() {
             )}
           </div>
 
+          <Select
+            label="経費カテゴリ"
+            options={[
+              { label: 'カテゴリなし', value: '' },
+              ...categories.flatMap((c) => [
+                { label: `■ ${c.name}`, value: c.id },
+                ...c.children.map((ch) => ({ label: `　└ ${ch.name}`, value: ch.id })),
+              ]),
+            ]}
+            value={editData.categoryId}
+            onChange={(e) => setEditData({ ...editData, categoryId: e.target.value })}
+          />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
               label="種別"
               options={[
+                { label: '種別なし', value: '' },
                 { label: '給与', value: 'SALARY' }, { label: '請求書', value: 'INVOICE' },
                 { label: '手数料', value: 'COMMISSION' }, { label: '賞与', value: 'BONUS' },
+                { label: '月額', value: 'MONTHLY' }, { label: '一括', value: 'ONE_TIME' },
+                { label: 'マイルストーン', value: 'MILESTONE' }, { label: 'その他', value: 'OTHER' },
               ]}
               value={editData.type}
               onChange={(e) => setEditData({ ...editData, type: e.target.value })}

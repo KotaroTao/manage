@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || undefined;
     const period = searchParams.get("period") || undefined;
     const type = searchParams.get("type") || undefined;
+    const categoryId = searchParams.get("categoryId") || undefined;
+    const businessId = searchParams.get("businessId") || undefined;
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get("perPage") || "20", 10)));
     const skip = (page - 1) * perPage;
@@ -25,6 +27,17 @@ export async function GET(request: NextRequest) {
     if (status) where.status = status;
     if (period) where.period = period;
     if (type) where.type = type;
+    if (businessId) where.businessId = businessId;
+
+    // カテゴリフィルタ: 大分類IDの場合は子カテゴリも含める
+    if (categoryId) {
+      const children = await prisma.expenseCategory.findMany({
+        where: { parentId: categoryId },
+        select: { id: true },
+      });
+      const ids = [categoryId, ...children.map((c) => c.id)];
+      where.categoryId = { in: ids };
+    }
 
     // パートナーの場合: 自分のパートナーIDに紐づく支払いのみ
     const access = await getPartnerAccess(user);
@@ -37,6 +50,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           partner: { select: { id: true, name: true, company: true } },
+          category: { select: { id: true, name: true, parentId: true, parent: { select: { id: true, name: true } } } },
         },
         orderBy: { createdAt: "desc" },
         skip,
@@ -45,7 +59,7 @@ export async function GET(request: NextRequest) {
       prisma.payment.count({ where }),
     ]);
 
-    // Summary aggregation (パートナーの場合は自分の支払いのみ集計)
+    // Summary aggregation
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const summaryBase: Record<string, unknown> = { deletedAt: null };
@@ -106,6 +120,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       partnerId,
+      categoryId,
       workflowId,
       customerBusinessId,
       businessId,
@@ -118,14 +133,8 @@ export async function POST(request: NextRequest) {
       note,
     } = body;
 
-    if (!partnerId) {
-      return NextResponse.json({ error: "partnerId is required" }, { status: 400 });
-    }
     if (amount === undefined || amount === null) {
       return NextResponse.json({ error: "amount is required" }, { status: 400 });
-    }
-    if (!type) {
-      return NextResponse.json({ error: "type is required" }, { status: 400 });
     }
 
     const parsedAmount = parseInt(String(amount), 10);
@@ -137,13 +146,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "tax must be a valid integer" }, { status: 400 });
     }
 
-    // Verify partner exists
-    const partner = await prisma.partner.findFirst({
-      where: { id: partnerId, deletedAt: null },
-    });
+    // パートナー検証(指定時のみ)
+    if (partnerId) {
+      const partner = await prisma.partner.findFirst({
+        where: { id: partnerId, deletedAt: null },
+      });
+      if (!partner) {
+        return NextResponse.json({ error: "Partner not found" }, { status: 404 });
+      }
+    }
 
-    if (!partner) {
-      return NextResponse.json({ error: "Partner not found" }, { status: 404 });
+    // カテゴリ検証(指定時のみ)
+    if (categoryId) {
+      const category = await prisma.expenseCategory.findUnique({ where: { id: categoryId } });
+      if (!category || !category.isActive) {
+        return NextResponse.json({ error: "Category not found" }, { status: 404 });
+      }
     }
 
     const taxAmount = parsedTax;
@@ -151,9 +169,27 @@ export async function POST(request: NextRequest) {
     const parsedWithholdingTax = parseInt(String(withholdingTax ?? 0), 10) || 0;
     const netAmount = totalAmount - parsedWithholdingTax;
 
+    // 承認ルール判定: 自動承認ならPENDINGをスキップ
+    let initialStatus: "DRAFT" | "APPROVED" = "DRAFT";
+    const matchingRule = await prisma.approvalRule.findFirst({
+      where: {
+        isActive: true,
+        minAmount: { lte: totalAmount },
+        OR: [
+          { maxAmount: null },
+          { maxAmount: { gt: totalAmount } },
+        ],
+      },
+      orderBy: { sortOrder: "asc" },
+    });
+    if (matchingRule?.autoApprove) {
+      initialStatus = "APPROVED";
+    }
+
     const payment = await prisma.payment.create({
       data: {
-        partnerId,
+        partnerId: partnerId || null,
+        categoryId: categoryId || null,
         workflowId: workflowId || null,
         customerBusinessId: customerBusinessId || null,
         businessId: businessId || null,
@@ -162,14 +198,15 @@ export async function POST(request: NextRequest) {
         totalAmount,
         withholdingTax: parsedWithholdingTax,
         netAmount,
-        type,
-        status: "DRAFT",
+        type: type || null,
+        status: initialStatus,
         period: period || null,
         dueDate: dueDate ? new Date(dueDate) : null,
         note: note || null,
       },
       include: {
         partner: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true, parent: { select: { name: true } } } },
       },
     });
 

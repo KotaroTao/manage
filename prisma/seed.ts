@@ -266,6 +266,45 @@ async function main() {
   });
   console.log("✅ 通知設定 作成");
 
+  // ============================================================
+  // 経費カテゴリ (7大分類 + 小分類)
+  // ============================================================
+  const categoryData: { name: string; children: string[] }[] = [
+    { name: "人件費", children: ["役員報酬", "正社員給与", "契約社員給与", "アルバイト給与", "賞与", "業務委託費", "制作外注費", "コンサル費", "顧問料", "社会保険料", "健康診断費", "福利厚生費"] },
+    { name: "マーケティング費", children: ["Google広告", "Meta広告", "Yahoo広告", "SNS広告その他", "LP制作費", "バナー制作費", "動画制作費", "写真撮影費", "印刷費", "チラシ制作", "ノベルティ", "イベント出展費"] },
+    { name: "IT・システム費", children: ["ChatGPT利用料", "AIツール利用料", "CRM利用料", "会計ソフト利用料", "MAツール利用料", "サーバー費", "ドメイン費", "クラウド利用料", "システム開発費", "保守費", "ライセンス費"] },
+    { name: "オフィス関連費", children: ["家賃", "共益費", "駐車場代", "電気代", "水道代", "ガス代", "インターネット回線費", "携帯電話代", "文房具", "事務用品", "PC購入", "机・椅子購入"] },
+    { name: "財務・税務関連", children: ["消費税(納付)", "法人税", "事業税", "固定資産税", "借入返済", "支払利息", "振込手数料", "カード決済手数料", "生命保険料", "損害保険料"] },
+    { name: "研修・教育費", children: ["社内研修費", "書籍購入", "セミナー参加費", "求人広告費", "人材紹介料", "採用イベント費"] },
+    { name: "その他", children: ["会食費", "贈答品", "出張費", "宿泊費", "交通費"] },
+  ];
+
+  for (let i = 0; i < categoryData.length; i++) {
+    const cat = categoryData[i];
+    let parent = await prisma.expenseCategory.findFirst({ where: { name: cat.name, parentId: null } });
+    if (!parent) {
+      parent = await prisma.expenseCategory.create({ data: { name: cat.name, parentId: null, sortOrder: i + 1, budgetTarget: true } });
+    }
+    for (let j = 0; j < cat.children.length; j++) {
+      const exists = await prisma.expenseCategory.findFirst({ where: { name: cat.children[j], parentId: parent.id } });
+      if (!exists) {
+        await prisma.expenseCategory.create({ data: { name: cat.children[j], parentId: parent.id, sortOrder: j + 1, budgetTarget: true } });
+      }
+    }
+  }
+  console.log(`✅ 経費カテゴリ ${categoryData.length}大分類 + ${categoryData.reduce((s, c) => s + c.children.length, 0)}小分類 作成`);
+
+  // 承認ルール
+  const rules = [
+    { name: "10万円未満: 自動承認", minAmount: 0, maxAmount: 100000, requiredRole: Role.MEMBER, autoApprove: true, sortOrder: 1 },
+    { name: "10万〜100万: マネージャー承認", minAmount: 100000, maxAmount: 1000000, requiredRole: Role.MANAGER, autoApprove: false, sortOrder: 2 },
+    { name: "100万円以上: 管理者承認", minAmount: 1000000, maxAmount: null, requiredRole: Role.ADMIN, autoApprove: false, sortOrder: 3 },
+  ];
+  for (const rule of rules) {
+    await prisma.approvalRule.create({ data: rule });
+  }
+  console.log(`✅ 承認ルール ${rules.length}件 作成`);
+
   console.log("\n🎉 シードデータ投入完了！");
   console.log("ログイン情報:");
   console.log("  管理者: admin@example.com / admin123");

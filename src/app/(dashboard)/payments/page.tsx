@@ -13,14 +13,16 @@ import { formatCurrency, formatDate, formatRelativeDate, getApiError, exportToCs
 
 interface Payment {
   id: string;
-  partnerId: string;
-  partner: { id: string; name: string; company: string | null };
+  partnerId: string | null;
+  partner: { id: string; name: string; company: string | null } | null;
+  categoryId: string | null;
+  category: { id: string; name: string; parentId: string | null; parent: { id: string; name: string } | null } | null;
   amount: number;
   tax: number;
   totalAmount: number;
   withholdingTax: number;
   netAmount: number | null;
-  type: string;
+  type: string | null;
   status: string;
   period: string | null;
   dueDate: string | null;
@@ -33,6 +35,13 @@ interface PartnerOption {
   id: string;
   name: string;
   company: string | null;
+}
+
+interface ExpenseCategory {
+  id: string;
+  name: string;
+  parentId: string | null;
+  children: { id: string; name: string }[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -70,9 +79,11 @@ export default function PaymentsPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPeriod, setFilterPeriod] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
 
   // Options
   const [partners, setPartners] = useState<PartnerOption[]>([]);
+  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
 
   // Summary
   const [summary, setSummary] = useState({
@@ -84,7 +95,7 @@ export default function PaymentsPage() {
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [newPayment, setNewPayment] = useState({
-    partnerId: '', amount: 0, tax: 0, withholdingTax: 0, withholdingEnabled: false,
+    partnerId: '', categoryId: '', amount: 0, tax: 0, withholdingTax: 0, withholdingEnabled: false,
     type: 'SALARY', period: '', dueDate: '', note: '',
   });
 
@@ -104,6 +115,7 @@ export default function PaymentsPage() {
       if (filterStatus) params.set('status', filterStatus);
       if (filterPeriod) params.set('period', filterPeriod);
       if (filterType) params.set('type', filterType);
+      if (filterCategory) params.set('categoryId', filterCategory);
 
       const res = await fetch(`/api/payments?${params.toString()}`);
       if (!res.ok) throw new Error(await getApiError(res, '支払いデータの取得に失敗しました'));
@@ -118,7 +130,7 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, filterPartner, filterStatus, filterPeriod, filterType]);
+  }, [page, filterPartner, filterStatus, filterPeriod, filterType, filterCategory]);
 
   const fetchPartners = useCallback(async () => {
     try {
@@ -130,7 +142,17 @@ export default function PaymentsPage() {
     } catch { /* silently fail */ }
   }, []);
 
-  useEffect(() => { fetchPartners(); }, [fetchPartners]);
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings/expense-categories');
+      if (res.ok) {
+        const json = await res.json();
+        setCategories(json.data || []);
+      }
+    } catch { /* silently fail */ }
+  }, []);
+
+  useEffect(() => { fetchPartners(); fetchCategories(); }, [fetchPartners, fetchCategories]);
   useEffect(() => { fetchPayments(); }, [fetchPayments]);
 
   const calcWithholdingTax = (amount: number) => {
@@ -151,8 +173,8 @@ export default function PaymentsPage() {
   };
 
   const handleCreate = async () => {
-    if (!newPayment.partnerId || !newPayment.amount) {
-      showToast('パートナーと金額は必須です', 'error');
+    if (!newPayment.amount) {
+      showToast('金額は必須です', 'error');
       return;
     }
     setCreating(true);
@@ -161,11 +183,12 @@ export default function PaymentsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          partnerId: newPayment.partnerId,
+          partnerId: newPayment.partnerId || null,
+          categoryId: newPayment.categoryId || null,
           amount: newPayment.amount,
           tax: newPayment.tax,
           withholdingTax: newPayment.withholdingTax,
-          type: newPayment.type,
+          type: newPayment.type || null,
           period: newPayment.period || null,
           dueDate: newPayment.dueDate || null,
           note: newPayment.note || null,
@@ -174,7 +197,7 @@ export default function PaymentsPage() {
       if (!res.ok) throw new Error(await getApiError(res, '作成に失敗しました'));
       showToast('支払いを作成しました', 'success');
       setShowCreateModal(false);
-      setNewPayment({ partnerId: '', amount: 0, tax: 0, withholdingTax: 0, withholdingEnabled: false, type: 'SALARY', period: '', dueDate: '', note: '' });
+      setNewPayment({ partnerId: '', categoryId: '', amount: 0, tax: 0, withholdingTax: 0, withholdingEnabled: false, type: 'SALARY', period: '', dueDate: '', note: '' });
       fetchPayments();
     } catch (err) {
       showToast(err instanceof Error ? err.message : '作成に失敗しました', 'error');
@@ -287,12 +310,12 @@ export default function PaymentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">支払い管理</h1>
-          <p className="mt-1 text-sm text-gray-500">パートナーへの支払いの管理・承認</p>
+          <p className="mt-1 text-sm text-gray-500">支払いの管理・承認</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => exportToCsv('payments', ['パートナー名', '金額', '消費税', '税込合計', '源泉徴収', '差引支払額', '種別', '期間', 'ステータス', '支払日', '期限'], payments.map((p) => [p.partner.name, p.amount, p.tax, p.totalAmount, p.withholdingTax || 0, totalNet(p), TYPE_LABELS[p.type] || p.type, p.period, STATUS_LABELS[p.status] || p.status, p.paidAt ? formatDate(p.paidAt) : '', p.dueDate ? formatDate(p.dueDate) : '']))}
+            onClick={() => exportToCsv('payments', ['パートナー名', 'カテゴリ', '金額', '消費税', '税込合計', '源泉徴収', '差引支払額', '種別', '期間', 'ステータス', '支払日', '期限'], payments.map((p) => [p.partner?.name || '-', p.category ? (p.category.parent ? `${p.category.parent.name} > ${p.category.name}` : p.category.name) : '-', p.amount, p.tax, p.totalAmount, p.withholdingTax || 0, totalNet(p), p.type ? (TYPE_LABELS[p.type] || p.type) : '-', p.period, STATUS_LABELS[p.status] || p.status, p.paidAt ? formatDate(p.paidAt) : '', p.dueDate ? formatDate(p.dueDate) : '']))}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -312,11 +335,22 @@ export default function PaymentsPage() {
 
       {/* Filters */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <Select
             options={[{ label: 'すべてのパートナー', value: '' }, ...partners.map((p) => ({ label: `${p.name}${p.company ? ` (${p.company})` : ''}`, value: p.id }))]}
             value={filterPartner}
             onChange={(e) => { setFilterPartner(e.target.value); setPage(1); }}
+          />
+          <Select
+            options={[
+              { label: 'すべてのカテゴリ', value: '' },
+              ...categories.flatMap((c) => [
+                { label: `■ ${c.name}`, value: c.id },
+                ...c.children.map((ch) => ({ label: `　└ ${ch.name}`, value: ch.id })),
+              ]),
+            ]}
+            value={filterCategory}
+            onChange={(e) => { setFilterCategory(e.target.value); setPage(1); }}
           />
           <Select
             options={[
@@ -341,9 +375,9 @@ export default function PaymentsPage() {
             onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
           />
         </div>
-        {(filterPartner || filterStatus || filterPeriod || filterType) && (
+        {(filterPartner || filterStatus || filterPeriod || filterType || filterCategory) && (
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <button type="button" onClick={() => { setFilterPartner(''); setFilterStatus(''); setFilterPeriod(''); setFilterType(''); setPage(1); }} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+            <button type="button" onClick={() => { setFilterPartner(''); setFilterStatus(''); setFilterPeriod(''); setFilterType(''); setFilterCategory(''); setPage(1); }} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
               フィルターをリセット
             </button>
           </div>
@@ -391,9 +425,8 @@ export default function PaymentsPage() {
                       <input type="checkbox" checked={payments.length > 0 && selectedIds.size === payments.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
                     </th>
                   )}
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">パートナー名</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">金額</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase hidden md:table-cell">消費税</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">パートナー/対象</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">カテゴリ</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">合計</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">差引支払額</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden md:table-cell">種別</th>
@@ -405,7 +438,7 @@ export default function PaymentsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {payments.length === 0 ? (
-                  <tr><td colSpan={11} className="px-4 py-16 text-center text-sm text-gray-500">支払いデータはありません</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-16 text-center text-sm text-gray-500">支払いデータはありません</td></tr>
                 ) : (
                   payments.map((payment) => (
                     <tr key={payment.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/payments/${payment.id}`)}>
@@ -414,9 +447,12 @@ export default function PaymentsPage() {
                           <input type="checkbox" checked={selectedIds.has(payment.id)} onChange={() => toggleSelect(payment.id)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
                         </td>
                       )}
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{payment.partner.name}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700 text-right">{formatCurrency(payment.amount)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700 text-right hidden md:table-cell">{formatCurrency(payment.tax)}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{payment.partner?.name || <span className="text-gray-400">-</span>}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 hidden md:table-cell">
+                        {payment.category ? (
+                          <span>{payment.category.parent ? `${payment.category.parent.name} > ` : ''}{payment.category.name}</span>
+                        ) : <span className="text-gray-400">-</span>}
+                      </td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">{formatCurrency(payment.totalAmount)}</td>
                       <td className="px-4 py-3 text-sm text-right hidden lg:table-cell">
                         {payment.withholdingTax > 0 ? (
@@ -425,7 +461,7 @@ export default function PaymentsPage() {
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 text-center hidden md:table-cell">{TYPE_LABELS[payment.type] || payment.type}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 text-center hidden md:table-cell">{payment.type ? (TYPE_LABELS[payment.type] || payment.type) : '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 text-center hidden lg:table-cell">{payment.period || '-'}</td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant={STATUS_VARIANTS[payment.status] || 'gray'} size="sm">
@@ -493,13 +529,26 @@ export default function PaymentsPage() {
         }
       >
         <div className="space-y-4">
-          <Select
-            label="パートナー"
-            required
-            options={[{ label: 'パートナーを選択', value: '' }, ...partners.map((p) => ({ label: `${p.name}${p.company ? ` (${p.company})` : ''}`, value: p.id }))]}
-            value={newPayment.partnerId}
-            onChange={(e) => setNewPayment({ ...newPayment, partnerId: e.target.value })}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              label="パートナー"
+              options={[{ label: 'パートナーなし', value: '' }, ...partners.map((p) => ({ label: `${p.name}${p.company ? ` (${p.company})` : ''}`, value: p.id }))]}
+              value={newPayment.partnerId}
+              onChange={(e) => setNewPayment({ ...newPayment, partnerId: e.target.value })}
+            />
+            <Select
+              label="経費カテゴリ"
+              options={[
+                { label: 'カテゴリなし', value: '' },
+                ...categories.flatMap((c) => [
+                  { label: `■ ${c.name}`, value: c.id },
+                  ...c.children.map((ch) => ({ label: `　└ ${ch.name}`, value: ch.id })),
+                ]),
+              ]}
+              value={newPayment.categoryId}
+              onChange={(e) => setNewPayment({ ...newPayment, categoryId: e.target.value })}
+            />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input label="報酬額" type="number" required value={newPayment.amount || ''} onChange={(e) => handleAmountChange(e.target.value)} />
             <Input label="消費税 (自動計算 10%)" type="number" value={newPayment.tax} onChange={(e) => setNewPayment({ ...newPayment, tax: Number(e.target.value) || 0 })} />
