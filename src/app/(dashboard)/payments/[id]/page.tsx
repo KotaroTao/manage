@@ -427,38 +427,130 @@ export default function PaymentDetailPage() {
       )}
 
       {activeTab === 'history' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {history.length === 0 ? (
             <p className="text-center text-sm text-gray-400 py-8">変更履歴はありません</p>
           ) : (
             history.map((h) => {
               const before = h.before as Record<string, unknown> | null;
               const after = h.after as Record<string, unknown> | null;
+              const isCreate = h.action === 'CREATE';
+
+              // 変更差分を検出
+              const changes: { label: string; before: string; after: string }[] = [];
+              if (before && after) {
+                const fieldDefs: { key: string; label: string; format: (v: unknown) => string }[] = [
+                  { key: 'status', label: 'ステータス', format: (v) => STATUS_LABELS[String(v)] || String(v) },
+                  { key: 'amount', label: '報酬額', format: (v) => formatCurrency(Number(v)) },
+                  { key: 'tax', label: '消費税', format: (v) => formatCurrency(Number(v)) },
+                  { key: 'totalAmount', label: '税込合計', format: (v) => formatCurrency(Number(v)) },
+                  { key: 'withholdingTax', label: '源泉徴収税', format: (v) => Number(v) ? formatCurrency(Number(v)) : 'なし' },
+                  { key: 'netAmount', label: '差引支払額', format: (v) => v != null ? formatCurrency(Number(v)) : '-' },
+                  { key: 'type', label: '種別', format: (v) => TYPE_LABELS[String(v)] || String(v) },
+                  { key: 'period', label: '期間', format: (v) => v ? String(v) : '-' },
+                  { key: 'dueDate', label: '支払期限', format: (v) => v ? formatDate(String(v)) : '-' },
+                  { key: 'paidAt', label: '支払日', format: (v) => v ? formatDate(String(v)) : '-' },
+                  { key: 'note', label: '備考', format: (v) => v ? String(v) : '-' },
+                ];
+                for (const f of fieldDefs) {
+                  const bv = before[f.key];
+                  const av = after[f.key];
+                  if (String(bv ?? '') !== String(av ?? '')) {
+                    changes.push({ label: f.label, before: f.format(bv), after: f.format(av) });
+                  }
+                }
+              }
+
+              // CREATE時は初期値を表示
+              const createFields: { label: string; value: string }[] = [];
+              if (isCreate && after) {
+                createFields.push(
+                  { label: 'ステータス', value: STATUS_LABELS[String(after.status)] || String(after.status) },
+                  { label: '報酬額', value: formatCurrency(Number(after.amount)) },
+                  { label: '消費税', value: formatCurrency(Number(after.tax)) },
+                  { label: '税込合計', value: formatCurrency(Number(after.totalAmount)) },
+                  { label: '種別', value: TYPE_LABELS[String(after.type)] || String(after.type) },
+                );
+                if (after.period) createFields.push({ label: '期間', value: String(after.period) });
+                if (after.dueDate) createFields.push({ label: '支払期限', value: formatDate(String(after.dueDate)) });
+                if (Number(after.withholdingTax)) createFields.push({ label: '源泉徴収税', value: formatCurrency(Number(after.withholdingTax)) });
+                if (after.note) createFields.push({ label: '備考', value: String(after.note) });
+              }
+
+              // 変更理由
+              const reason = after?.adjustmentReason && (!before || String(before.adjustmentReason || '') !== String(after.adjustmentReason || ''))
+                ? String(after.adjustmentReason)
+                : null;
+
+              const actionVariant: Record<string, 'gray' | 'info' | 'success' | 'warning' | 'danger'> = {
+                CREATE: 'info', UPDATE: 'warning', CANCEL: 'danger', SOFT_DELETE: 'danger', BATCH_UPDATE: 'warning',
+              };
+
               return (
-                <div key={h.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="gray" size="sm">{ACTION_LABELS[h.action] || h.action}</Badge>
-                      <span className="text-sm font-medium text-gray-900">{h.userName}</span>
+                <div key={h.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <Badge variant={actionVariant[h.action] || 'gray'} size="sm">{ACTION_LABELS[h.action] || h.action}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        <span className="text-sm font-semibold text-gray-900">{h.userName}</span>
+                      </div>
                     </div>
-                    <span className="text-xs text-gray-400">{formatDate(h.createdAt)}</span>
+                    <span className="text-xs text-gray-500">{formatDate(h.createdAt)}</span>
                   </div>
-                  {before && after && (
-                    <div className="text-xs text-gray-500 space-y-1">
-                      {before.status !== after.status && (
-                        <p>ステータス: {STATUS_LABELS[String(before.status)] || String(before.status)} → {STATUS_LABELS[String(after.status)] || String(after.status)}</p>
-                      )}
-                      {before.amount !== after.amount && (
-                        <p>金額: {formatCurrency(Number(before.amount))} → {formatCurrency(Number(after.amount))}</p>
-                      )}
-                      {before.totalAmount !== after.totalAmount && (
-                        <p>合計: {formatCurrency(Number(before.totalAmount))} → {formatCurrency(Number(after.totalAmount))}</p>
-                      )}
-                      {String(before.adjustmentReason || '') !== String(after.adjustmentReason || '') && !!after.adjustmentReason && (
-                        <p className="text-amber-600">変更理由: {String(after.adjustmentReason)}</p>
-                      )}
-                    </div>
-                  )}
+
+                  {/* Body */}
+                  <div className="px-5 py-3">
+                    {/* CREATE: 初期値一覧 */}
+                    {isCreate && createFields.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                        {createFields.map((f, i) => (
+                          <div key={i}>
+                            <span className="text-gray-400 text-xs">{f.label}</span>
+                            <p className="text-gray-900 font-medium">{f.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* UPDATE/CANCEL: 変更差分テーブル */}
+                    {!isCreate && changes.length > 0 && (
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-xs text-gray-400">
+                            <th className="text-left font-medium pb-2 pr-4 w-28">項目</th>
+                            <th className="text-left font-medium pb-2 pr-2">変更前</th>
+                            <th className="text-center font-medium pb-2 w-8"></th>
+                            <th className="text-left font-medium pb-2">変更後</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {changes.map((c, i) => (
+                            <tr key={i}>
+                              <td className="py-1.5 pr-4 text-gray-500 font-medium">{c.label}</td>
+                              <td className="py-1.5 pr-2 text-red-600 bg-red-50/50 px-2 rounded-l">{c.before}</td>
+                              <td className="py-1.5 text-center text-gray-300">→</td>
+                              <td className="py-1.5 text-green-700 bg-green-50/50 px-2 rounded-r font-medium">{c.after}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+
+                    {/* 変更なし */}
+                    {!isCreate && changes.length === 0 && (
+                      <p className="text-xs text-gray-400">変更内容の詳細は記録されていません</p>
+                    )}
+
+                    {/* 変更理由 */}
+                    {reason && (
+                      <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <p className="text-xs font-medium text-amber-700">変更理由</p>
+                        <p className="text-sm text-amber-800">{reason}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })
