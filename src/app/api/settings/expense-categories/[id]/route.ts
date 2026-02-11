@@ -10,12 +10,12 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role !== "ADMIN") {
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id } = await context.params;
-    const { name, description, sortOrder, budgetTarget, isActive } = await request.json();
+    const { name, parentId, description, sortOrder, budgetTarget, isActive } = await request.json();
 
     const existing = await prisma.expenseCategory.findUnique({ where: { id } });
     if (!existing) {
@@ -26,6 +26,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       where: { id },
       data: {
         ...(name !== undefined && { name: name.trim() }),
+        ...(parentId !== undefined && { parentId: parentId || null }),
         ...(description !== undefined && { description }),
         ...(sortOrder !== undefined && { sortOrder }),
         ...(budgetTarget !== undefined && { budgetTarget }),
@@ -46,7 +47,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role !== "ADMIN") {
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
