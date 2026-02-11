@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     const grouped: Record<
       string,
       {
-        partnerId: string;
+        partnerId: string | null;
         partnerName: string;
         partnerCompany: string | null;
         payments: typeof payments;
@@ -62,12 +62,12 @@ export async function GET(request: NextRequest) {
     > = {};
 
     for (const payment of payments) {
-      const key = payment.partnerId;
+      const key = payment.partnerId || "__no_partner__";
       if (!grouped[key]) {
         grouped[key] = {
           partnerId: payment.partnerId,
-          partnerName: payment.partner.name,
-          partnerCompany: payment.partner.company,
+          partnerName: payment.partner?.name || "パートナーなし",
+          partnerCompany: payment.partner?.company || null,
           payments: [],
           totals: {
             amount: 0,

@@ -32,6 +32,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
       include: {
         partner: { select: { id: true, name: true, company: true, bankName: true, bankBranch: true, bankAccountType: true, bankAccountNumber: true, bankAccountHolder: true } },
+        category: { select: { id: true, name: true, parentId: true, parent: { select: { id: true, name: true } } } },
         workflow: { select: { id: true, status: true } },
         customerBusiness: {
           include: {
@@ -85,7 +86,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const body = await request.json();
-    const { status, amount, tax, withholdingTax, type, period, dueDate, note, adjustmentReason } = body;
+    const { status, amount, tax, withholdingTax, type, categoryId, period, dueDate, note, adjustmentReason } = body;
 
     // Validate status transition
     if (status && status !== existing.status) {
@@ -99,13 +100,39 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         );
       }
 
-      // Role checks for status transitions
-      if (status === "APPROVED" && user.role !== "ADMIN" && user.role !== "MANAGER") {
-        return NextResponse.json({ error: "Forbidden: 承認にはManager権限が必要です" }, { status: 403 });
+      // 承認ルールベースの権限チェック
+      const ROLE_LEVEL: Record<string, number> = { PARTNER: 0, MEMBER: 1, MANAGER: 2, ADMIN: 3 };
+      const userLevel = ROLE_LEVEL[user.role] ?? 0;
+
+      if (status === "APPROVED" || status === "PAID") {
+        const totalAmt = existing.totalAmount;
+        const matchingRule = await prisma.approvalRule.findFirst({
+          where: {
+            isActive: true,
+            minAmount: { lte: totalAmt },
+            OR: [{ maxAmount: null }, { maxAmount: { gt: totalAmt } }],
+          },
+          orderBy: { sortOrder: "asc" },
+        });
+        if (matchingRule) {
+          const requiredLevel = ROLE_LEVEL[matchingRule.requiredRole] ?? 0;
+          if (userLevel < requiredLevel) {
+            return NextResponse.json(
+              { error: `この金額(${totalAmt.toLocaleString()}円)の${status === "APPROVED" ? "承認" : "支払確定"}には${matchingRule.requiredRole}権限が必要です` },
+              { status: 403 },
+            );
+          }
+        } else {
+          // ルールなし: デフォルトの権限チェック
+          if (status === "APPROVED" && userLevel < ROLE_LEVEL.MANAGER) {
+            return NextResponse.json({ error: "承認にはManager権限が必要です" }, { status: 403 });
+          }
+          if (status === "PAID" && userLevel < ROLE_LEVEL.ADMIN) {
+            return NextResponse.json({ error: "支払確定にはAdmin権限が必要です" }, { status: 403 });
+          }
+        }
       }
-      if (status === "PAID" && user.role !== "ADMIN") {
-        return NextResponse.json({ error: "Forbidden: 支払確定にはAdmin権限が必要です" }, { status: 403 });
-      }
+
       if (status === "CANCELLED" && user.role !== "ADMIN") {
         return NextResponse.json({ error: "Forbidden: 取消にはAdmin権限が必要です" }, { status: 403 });
       }
@@ -138,6 +165,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     if (adjustmentReason !== undefined) updateData.adjustmentReason = adjustmentReason;
+    if (categoryId !== undefined) updateData.categoryId = categoryId || null;
     if (type !== undefined) updateData.type = type;
     if (period !== undefined) updateData.period = period || null;
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;

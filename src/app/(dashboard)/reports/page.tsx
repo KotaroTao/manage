@@ -6,6 +6,22 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/input';
 import { formatCurrency, getApiError } from '@/lib/utils';
 
+interface BudgetCategory {
+  categoryId: string;
+  categoryName: string;
+  budget: number;
+  actual: number;
+  remaining: number;
+  rate: number;
+}
+
+interface BudgetSummary {
+  totalBudget: number;
+  totalActual: number;
+  totalRemaining: number;
+  totalRate: number;
+}
+
 interface BusinessCustomerCount {
   businessName: string;
   colorCode: string;
@@ -42,6 +58,14 @@ export default function ReportsPage() {
   const [months, setMonths] = useState(6);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // Budget analysis
+  const [budgetData, setBudgetData] = useState<BudgetCategory[]>([]);
+  const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
+  const [budgetPeriod, setBudgetPeriod] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
   const fetchReports = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -58,9 +82,24 @@ export default function ReportsPage() {
     }
   }, [months]);
 
+  const fetchBudget = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/analytics/budget?period=${budgetPeriod}`);
+      if (res.ok) {
+        const json = await res.json();
+        setBudgetData(json.data || []);
+        setBudgetSummary(json.summary || null);
+      }
+    } catch { /* silently fail */ }
+  }, [budgetPeriod]);
+
   useEffect(() => {
     fetchReports();
   }, [fetchReports]);
+
+  useEffect(() => {
+    fetchBudget();
+  }, [fetchBudget]);
 
   if (loading) {
     return (
@@ -126,6 +165,90 @@ export default function ReportsPage() {
           </button>
         </div>
       </div>
+
+      {/* Budget vs Actual Analysis */}
+      <Card>
+        <CardHeader
+          title="予算 vs 実績 (カテゴリ別)"
+          action={
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={budgetPeriod}
+                onChange={(e) => setBudgetPeriod(e.target.value)}
+                className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          }
+        />
+        <CardBody>
+          {budgetData.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-8">予算データがありません。設定 &gt; 予算管理から設定してください。</p>
+          ) : (
+            <div className="space-y-5">
+              {/* Summary */}
+              {budgetSummary && budgetSummary.totalBudget > 0 && (
+                <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500">予算合計</p>
+                    <p className="text-lg font-bold text-gray-900">{formatCurrency(budgetSummary.totalBudget)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500">実績合計</p>
+                    <p className="text-lg font-bold text-blue-600">{formatCurrency(budgetSummary.totalActual)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500">残額</p>
+                    <p className={`text-lg font-bold ${budgetSummary.totalRemaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(budgetSummary.totalRemaining)}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500">消化率</p>
+                    <p className={`text-lg font-bold ${budgetSummary.totalRate <= 80 ? 'text-green-600' : budgetSummary.totalRate <= 100 ? 'text-amber-600' : 'text-red-600'}`}>
+                      {budgetSummary.totalRate}%
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Per-category bars */}
+              {budgetData.filter(c => c.budget > 0 || c.actual > 0).map((cat) => {
+                const maxVal = Math.max(cat.budget, cat.actual, 1);
+                return (
+                  <div key={cat.categoryId}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm font-medium text-gray-700">{cat.categoryName}</span>
+                      <span className={`text-sm font-bold ${cat.rate <= 80 ? 'text-green-600' : cat.rate <= 100 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {cat.rate}%
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 w-8">予算</span>
+                        <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-gray-300 rounded-full transition-all duration-500" style={{ width: `${(cat.budget / maxVal) * 100}%` }} />
+                        </div>
+                        <span className="text-xs text-gray-500 w-24 text-right">{formatCurrency(cat.budget)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 w-8">実績</span>
+                        <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${cat.rate <= 80 ? 'bg-green-500' : cat.rate <= 100 ? 'bg-amber-500' : 'bg-red-500'}`}
+                            style={{ width: `${(cat.actual / maxVal) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-500 w-24 text-right">{formatCurrency(cat.actual)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Business customer count bar chart */}

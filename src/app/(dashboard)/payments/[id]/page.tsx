@@ -12,7 +12,7 @@ import { formatCurrency, formatDate, getApiError } from '@/lib/utils';
 
 interface PaymentDetail {
   id: string;
-  partnerId: string;
+  partnerId: string | null;
   partner: {
     id: string;
     name: string;
@@ -22,13 +22,20 @@ interface PaymentDetail {
     bankAccountType: string | null;
     bankAccountNumber: string | null;
     bankAccountHolder: string | null;
-  };
+  } | null;
+  categoryId: string | null;
+  category: {
+    id: string;
+    name: string;
+    parentId: string | null;
+    parent: { id: string; name: string } | null;
+  } | null;
   amount: number;
   tax: number;
   totalAmount: number;
   withholdingTax: number;
   netAmount: number | null;
-  type: string;
+  type: string | null;
   status: string;
   period: string | null;
   dueDate: string | null;
@@ -43,6 +50,13 @@ interface PaymentDetail {
   comments: Comment[];
   createdAt: string;
   updatedAt: string;
+}
+
+interface ExpenseCategory {
+  id: string;
+  name: string;
+  parentId: string | null;
+  children: { id: string; name: string }[];
 }
 
 interface Comment {
@@ -90,9 +104,12 @@ export default function PaymentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'detail' | 'comments' | 'history'>('detail');
 
+  // Categories
+  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+
   // Edit state
   const [editing, setEditing] = useState(false);
-  const [editData, setEditData] = useState({ amount: 0, tax: 0, withholdingTax: 0, note: '', dueDate: '', period: '', type: '', adjustmentReason: '' });
+  const [editData, setEditData] = useState({ amount: 0, tax: 0, withholdingTax: 0, note: '', dueDate: '', period: '', type: '', categoryId: '', adjustmentReason: '' });
   const [saving, setSaving] = useState(false);
 
   // Comment state
@@ -128,10 +145,21 @@ export default function PaymentDetailPage() {
     } catch { /* ignore */ }
   }, [id]);
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings/expense-categories');
+      if (res.ok) {
+        const json = await res.json();
+        setCategories(json.data || []);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchPayment();
     fetchHistory();
-  }, [fetchPayment, fetchHistory]);
+    fetchCategories();
+  }, [fetchPayment, fetchHistory, fetchCategories]);
 
   const startEditing = () => {
     if (!payment) return;
@@ -142,7 +170,8 @@ export default function PaymentDetailPage() {
       note: payment.note || '',
       dueDate: payment.dueDate ? payment.dueDate.slice(0, 10) : '',
       period: payment.period || '',
-      type: payment.type,
+      type: payment.type || '',
+      categoryId: payment.categoryId || '',
       adjustmentReason: '',
     });
     setEditing(true);
@@ -189,7 +218,8 @@ export default function PaymentDetailPage() {
           note: editData.note,
           dueDate: editData.dueDate || null,
           period: editData.period || null,
-          type: editData.type,
+          type: editData.type || null,
+          categoryId: editData.categoryId || null,
           ...(editData.adjustmentReason && { adjustmentReason: editData.adjustmentReason }),
         }),
       });
@@ -272,8 +302,15 @@ export default function PaymentDetailPage() {
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{payment.partner.name} への支払い</h1>
-            <p className="text-sm text-gray-500">{payment.partner.company || ''} / {TYPE_LABELS[payment.type] || payment.type} / {payment.period || '期間未設定'}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{payment.partner ? `${payment.partner.name} への支払い` : '支払い詳細'}</h1>
+            <p className="text-sm text-gray-500">
+              {[
+                payment.partner?.company,
+                payment.category ? (payment.category.parent ? `${payment.category.parent.name} > ${payment.category.name}` : payment.category.name) : null,
+                payment.type ? (TYPE_LABELS[payment.type] || payment.type) : null,
+                payment.period || '期間未設定',
+              ].filter(Boolean).join(' / ')}
+            </p>
           </div>
         </div>
         <Badge variant={STATUS_VARIANTS[payment.status] || 'gray'} size="lg">
@@ -347,7 +384,16 @@ export default function PaymentDetailPage() {
               </div>
             )}
             <div className="grid grid-cols-2 gap-4 text-sm pt-2 border-t border-gray-100">
-              <div><span className="text-gray-500">種別</span><p className="font-medium">{TYPE_LABELS[payment.type] || payment.type}</p></div>
+              {payment.category && (
+                <div className="col-span-2">
+                  <span className="text-gray-500">経費カテゴリ</span>
+                  <p className="font-medium">
+                    {payment.category.parent && <span className="text-gray-500">{payment.category.parent.name} &gt; </span>}
+                    {payment.category.name}
+                  </p>
+                </div>
+              )}
+              <div><span className="text-gray-500">種別</span><p className="font-medium">{payment.type ? (TYPE_LABELS[payment.type] || payment.type) : '-'}</p></div>
               <div><span className="text-gray-500">期間</span><p className="font-medium">{payment.period || '-'}</p></div>
               <div><span className="text-gray-500">支払期限</span><p className="font-medium">{payment.dueDate ? formatDate(payment.dueDate) : '-'}</p></div>
               <div><span className="text-gray-500">支払日</span><p className="font-medium">{payment.paidAt ? formatDate(payment.paidAt) : '-'}</p></div>
@@ -357,6 +403,7 @@ export default function PaymentDetailPage() {
 
           {/* Partner Info */}
           <div className="space-y-6">
+            {payment.partner && (
             <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
               <h2 className="text-lg font-semibold text-gray-900">パートナー情報</h2>
               <div className="text-sm space-y-2">
@@ -374,6 +421,7 @@ export default function PaymentDetailPage() {
                 </div>
               )}
             </div>
+            )}
             {payment.customerBusiness && (
               <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-2">
                 <h2 className="text-lg font-semibold text-gray-900">関連情報</h2>
@@ -606,12 +654,27 @@ export default function PaymentDetailPage() {
             )}
           </div>
 
+          <Select
+            label="経費カテゴリ"
+            options={[
+              { label: 'カテゴリなし', value: '' },
+              ...categories.flatMap((c) => [
+                { label: `■ ${c.name}`, value: c.id },
+                ...c.children.map((ch) => ({ label: `　└ ${ch.name}`, value: ch.id })),
+              ]),
+            ]}
+            value={editData.categoryId}
+            onChange={(e) => setEditData({ ...editData, categoryId: e.target.value })}
+          />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
               label="種別"
               options={[
+                { label: '種別なし', value: '' },
                 { label: '給与', value: 'SALARY' }, { label: '請求書', value: 'INVOICE' },
                 { label: '手数料', value: 'COMMISSION' }, { label: '賞与', value: 'BONUS' },
+                { label: '月額', value: 'MONTHLY' }, { label: '一括', value: 'ONE_TIME' },
+                { label: 'マイルストーン', value: 'MILESTONE' }, { label: 'その他', value: 'OTHER' },
               ]}
               value={editData.type}
               onChange={(e) => setEditData({ ...editData, type: e.target.value })}
