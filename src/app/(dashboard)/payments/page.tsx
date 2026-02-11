@@ -334,6 +334,8 @@ export default function PaymentsPage() {
               { label: 'すべての種別', value: '' },
               { label: '給与', value: 'SALARY' }, { label: '請求書', value: 'INVOICE' },
               { label: '手数料', value: 'COMMISSION' }, { label: '賞与', value: 'BONUS' },
+              { label: '月額', value: 'MONTHLY' }, { label: '一括', value: 'ONE_TIME' },
+              { label: 'マイルストーン', value: 'MILESTONE' }, { label: 'その他', value: 'OTHER' },
             ]}
             value={filterType}
             onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
@@ -538,6 +540,8 @@ export default function PaymentsPage() {
               options={[
                 { label: '給与', value: 'SALARY' }, { label: '請求書', value: 'INVOICE' },
                 { label: '手数料', value: 'COMMISSION' }, { label: '賞与', value: 'BONUS' },
+                { label: '月額', value: 'MONTHLY' }, { label: '一括', value: 'ONE_TIME' },
+                { label: 'マイルストーン', value: 'MILESTONE' }, { label: 'その他', value: 'OTHER' },
               ]}
               value={newPayment.type}
               onChange={(e) => setNewPayment({ ...newPayment, type: e.target.value })}
