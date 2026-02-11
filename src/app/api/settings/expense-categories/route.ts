@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role !== "ADMIN") {
+    if (user.role !== "ADMIN" && user.role !== "MANAGER") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
