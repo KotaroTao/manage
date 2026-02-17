@@ -28,6 +28,7 @@ ENV NODE_ENV=production
 ARG DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 ENV DATABASE_URL=${DATABASE_URL}
 
+RUN mkdir -p public
 RUN npm run build
 
 # --- Stage 3: Production runner ---
