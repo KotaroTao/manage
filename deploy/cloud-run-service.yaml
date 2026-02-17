@@ -40,12 +40,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: latest
-                  name: DATABASE_URL
+                  name: manage-database-url
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   key: latest
-                  name: JWT_SECRET
+                  name: manage-jwt-secret
           startupProbe:
             httpGet:
               path: /login
