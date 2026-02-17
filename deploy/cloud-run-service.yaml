@@ -1,0 +1,60 @@
+# ============================================================
+# Cloud Run Service 定義 (手動デプロイ用)
+# ============================================================
+# 使い方:
+#   gcloud run services replace deploy/cloud-run-service.yaml \
+#     --region asia-northeast1
+# ============================================================
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: manage
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "5"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+        # Cloud SQL 接続 (プロジェクトに合わせて変更)
+        # run.googleapis.com/cloudsql-instances: PROJECT_ID:asia-northeast1:manage-db
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: asia-northeast1-docker.pkg.dev/PROJECT_ID/manage/manage:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: DATABASE_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: JWT_SECRET
+          startupProbe:
+            httpGet:
+              path: /login
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: 8080
+            periodSeconds: 30
