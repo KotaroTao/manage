@@ -1,0 +1,67 @@
+# ============================================================
+# Cloud Build: Build & Deploy to Cloud Run
+# ============================================================
+# Trigger: Push to main branch
+#
+# Required substitutions (set in Cloud Build trigger):
+#   _REGION:          e.g. asia-northeast1
+#   _SERVICE_NAME:    e.g. manage
+#   _CLOUD_SQL_CONNECTION: e.g. project-id:asia-northeast1:manage-db
+#
+# Required secrets (set in Secret Manager):
+#   DATABASE_URL, JWT_SECRET
+# ============================================================
+
+steps:
+  # Step 1: Build Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/manage/${_SERVICE_NAME}:$COMMIT_SHA"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/manage/${_SERVICE_NAME}:latest"
+      - "."
+
+  # Step 2: Push to Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/manage/${_SERVICE_NAME}"
+
+  # Step 3: Deploy to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE_NAME}"
+      - "--image"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/manage/${_SERVICE_NAME}:$COMMIT_SHA"
+      - "--region"
+      - "${_REGION}"
+      - "--platform"
+      - "managed"
+      - "--allow-unauthenticated"
+      - "--port"
+      - "8080"
+      - "--memory"
+      - "1Gi"
+      - "--cpu"
+      - "1"
+      - "--min-instances"
+      - "0"
+      - "--max-instances"
+      - "5"
+      - "--set-secrets"
+      - "DATABASE_URL=manage-database-url:latest,JWT_SECRET=manage-jwt-secret:latest"
+      - "--add-cloudsql-instances"
+      - "${_CLOUD_SQL_CONNECTION}"
+
+substitutions:
+  _REGION: asia-northeast1
+  _SERVICE_NAME: manage
+
+options:
+  logging: CLOUD_LOGGING_ONLY
