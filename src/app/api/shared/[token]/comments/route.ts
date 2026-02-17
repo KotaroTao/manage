@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: comments });
   } catch (error) {
-    console.error("Shared comments GET error:", error);
+    logger.error("Shared comments GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: comment }, { status: 201 });
   } catch (error) {
-    console.error("Shared comment POST error:", error);
+    logger.error("Shared comment POST error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

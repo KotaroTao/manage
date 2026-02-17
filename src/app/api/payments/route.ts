@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
 import { getPartnerAccess } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Payments GET error:", error);
+    logger.error("Payments GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -229,7 +230,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: payment }, { status: 201 });
   } catch (error) {
-    console.error("Payment POST error:", error);
+    logger.error("Payment POST error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

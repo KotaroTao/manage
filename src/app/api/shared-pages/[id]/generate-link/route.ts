@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: { url, token: shareLink.token } }, { status: 201 });
   } catch (error) {
-    console.error("Generate link error:", error);
+    logger.error("Generate link error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
 import { getBusinessIdFilter, canWrite } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: workflow });
   } catch (error) {
-    console.error("Workflow GET error:", error);
+    logger.error("Workflow GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -154,7 +155,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: updated });
   } catch (error) {
-    console.error("Workflow PUT error:", error);
+    logger.error("Workflow PUT error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -221,7 +222,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: null, message: "Workflow cancelled" });
   } catch (error) {
-    console.error("Workflow DELETE error:", error);
+    logger.error("Workflow DELETE error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

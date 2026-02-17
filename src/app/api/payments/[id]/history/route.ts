@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { getPartnerAccess } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: history });
   } catch (error) {
-    console.error("PaymentHistory GET error:", error);
+    logger.error("PaymentHistory GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

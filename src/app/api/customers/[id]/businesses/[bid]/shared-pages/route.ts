@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { getBusinessIdFilter, canWrite } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string; bid: string }> };
 
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: pages });
   } catch (error) {
-    console.error("SharedPages GET error:", error);
+    logger.error("SharedPages GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: page }, { status: 201 });
   } catch (error) {
-    console.error("SharedPages POST error:", error);
+    logger.error("SharedPages POST error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

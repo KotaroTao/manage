@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -108,7 +109,7 @@ export async function GET(request: NextRequest) {
       grandTotal,
     });
   } catch (error) {
-    console.error("Monthly payments GET error:", error);
+    logger.error("Monthly payments GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

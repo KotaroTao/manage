@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: partner });
   } catch (error) {
-    console.error("Partner GET error:", error);
+    logger.error("Partner GET error", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -125,7 +126,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: updated });
   } catch (error) {
-    console.error("Partner PUT error:", error);
+    logger.error("Partner PUT error", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -166,7 +167,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: null, message: "Partner deleted" });
   } catch (error) {
-    console.error("Partner DELETE error:", error);
+    logger.error("Partner DELETE error", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

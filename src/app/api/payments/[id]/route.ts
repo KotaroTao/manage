@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
 import { getPartnerAccess } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: payment });
   } catch (error) {
-    console.error("Payment GET error:", error);
+    logger.error("Payment GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -204,7 +205,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: updated });
   } catch (error) {
-    console.error("Payment PUT error:", error);
+    logger.error("Payment PUT error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -256,7 +257,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: null, message: "Payment deleted" });
   } catch (error) {
-    console.error("Payment DELETE error:", error);
+    logger.error("Payment DELETE error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

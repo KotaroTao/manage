@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { createToken, getAuthCookieOptions } from "@/lib/auth";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/security";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
@@ -82,7 +83,8 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch {
+  } catch (error) {
+    logger.error("Login failed", error, request);
     return NextResponse.json(
       { error: "ログイン処理中にエラーが発生しました。" },
       { status: 500 },

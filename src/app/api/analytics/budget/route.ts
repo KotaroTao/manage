@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Analytics Budget GET error:", error);
+    logger.error("Analytics Budget GET error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

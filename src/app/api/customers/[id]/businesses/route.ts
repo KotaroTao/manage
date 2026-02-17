@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
 import { getBusinessIdFilter, canEditInBusiness } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: customerBusinesses });
   } catch (error) {
-    console.error("CustomerBusinesses GET error:", error);
+    logger.error("CustomerBusinesses GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: customerBusiness }, { status: 201 });
   } catch (error) {
-    console.error("CustomerBusiness POST error:", error);
+    logger.error("CustomerBusiness POST error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

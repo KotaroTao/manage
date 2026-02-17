@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
 import { getBusinessIdFilter } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: businessesWithStats });
   } catch (error) {
-    console.error("Businesses GET error:", error);
+    logger.error("Businesses GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: business }, { status: 201 });
   } catch (error) {
-    console.error("Business POST error:", error);
+    logger.error("Business POST error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

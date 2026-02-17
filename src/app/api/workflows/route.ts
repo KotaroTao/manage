@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
 import { getBusinessIdFilter } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Workflows GET error:", error);
+    logger.error("Workflows GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -199,7 +200,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: workflow }, { status: 201 });
   } catch (error) {
-    console.error("Workflow POST error:", error);
+    logger.error("Workflow POST error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

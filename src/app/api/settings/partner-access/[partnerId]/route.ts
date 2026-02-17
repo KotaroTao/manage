@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { ALL_CONTENT_TYPES, type ContentType } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ partnerId: string }> };
 
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: partner });
   } catch (error) {
-    console.error("Partner access detail GET error:", error);
+    logger.error("Partner access detail GET error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
@@ -170,7 +171,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: updated });
   } catch (error) {
-    console.error("Partner access PUT error:", error);
+    logger.error("Partner access PUT error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

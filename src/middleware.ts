@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { logger } from "@/lib/logger";
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
@@ -68,8 +69,10 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL("/", request.url));
       }
     }
-  } catch {
-    // Invalid token - redirect to login
+  } catch (error) {
+    logger.warn("Invalid JWT token, redirecting to login", request, {
+      error: error instanceof Error ? error.message : String(error),
+    });
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     const response = NextResponse.redirect(loginUrl);

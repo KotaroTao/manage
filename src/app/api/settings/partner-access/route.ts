@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { ALL_CONTENT_TYPES, type ContentType } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 /**
  * GET: パートナーアクセス設定一覧
  * パートナー(userId紐付きあり) × 事業のアクセス権一覧を返す
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -46,7 +47,7 @@ export async function GET() {
 
     return NextResponse.json({ data: partners });
   } catch (error) {
-    console.error("Partner access GET error:", error);
+    logger.error("Partner access GET error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: result }, { status: 201 });
   } catch (error) {
-    console.error("Partner access POST error:", error);
+    logger.error("Partner access POST error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
