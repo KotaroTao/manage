@@ -35,6 +35,17 @@ const STATUS_OPTIONS = [
   { label: '無効', value: 'INACTIVE' },
 ];
 
+const CONTACT_METHOD_OPTIONS = [
+  { value: 'EMAIL', label: 'メール' },
+  { value: 'PHONE', label: '電話' },
+  { value: 'FACEBOOK', label: 'Facebook' },
+  { value: 'INSTAGRAM', label: 'Instagram' },
+  { value: 'CHATWORK', label: 'ChatWork' },
+  { value: 'LINE', label: 'LINE' },
+  { value: 'SLACK', label: 'Slack' },
+  { value: 'X', label: 'X' },
+];
+
 const CONTRACT_TYPE_OPTIONS = [
   { label: 'すべて', value: '' },
   { label: '正社員', value: 'EMPLOYEE' },
@@ -81,12 +92,19 @@ export default function PartnersPage() {
   // Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState<PartnerFormData>({
+  const initialForm: PartnerFormData = {
     name: '',
     email: '',
     phone: '',
     company: '',
     specialty: '',
+    facebook: '',
+    instagram: '',
+    chatwork: '',
+    line: '',
+    slack: '',
+    x: '',
+    preferredContactMethods: [],
     bankName: '',
     bankBranch: '',
     bankAccountType: '普通',
@@ -95,7 +113,8 @@ export default function PartnersPage() {
     contractType: 'OUTSOURCING',
     rate: undefined,
     note: '',
-  });
+  };
+  const [form, setForm] = useState<PartnerFormData>(initialForm);
 
   const fetchPartners = useCallback(async () => {
     setLoading(true);
@@ -146,27 +165,21 @@ export default function PartnersPage() {
       if (!res.ok) throw new Error(await getApiError(res, '作成に失敗しました'));
       showToast('パートナーを作成しました', 'success');
       setShowCreateModal(false);
-      setForm({
-        name: '',
-        email: '',
-        phone: '',
-        company: '',
-        specialty: '',
-        bankName: '',
-        bankBranch: '',
-        bankAccountType: '普通',
-        bankAccountNumber: '',
-        bankAccountHolder: '',
-        contractType: 'OUTSOURCING',
-        rate: undefined,
-        note: '',
-      });
+      setForm(initialForm);
       fetchPartners();
     } catch (err) {
       showToast(err instanceof Error ? err.message : '作成に失敗しました', 'error');
     } finally {
       setCreating(false);
     }
+  };
+
+  const toggleContactMethod = (method: string, formState: PartnerFormData, setFormState: (f: PartnerFormData) => void) => {
+    const current = formState.preferredContactMethods || [];
+    const updated = current.includes(method)
+      ? current.filter((m) => m !== method)
+      : [...current, method];
+    setFormState({ ...formState, preferredContactMethods: updated });
   };
 
   const statusBadge = (status: string) => {
@@ -435,6 +448,63 @@ export default function PartnersPage() {
               value={form.rate ?? ''}
               onChange={(e) => setForm({ ...form, rate: e.target.value ? Number(e.target.value) : undefined })}
             />
+          </div>
+
+          <hr className="border-gray-200" />
+          <h3 className="text-sm font-semibold text-gray-700">連絡先・SNS</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Facebook"
+              placeholder="ユーザー名 or URL"
+              value={form.facebook}
+              onChange={(e) => setForm({ ...form, facebook: e.target.value })}
+            />
+            <Input
+              label="Instagram"
+              placeholder="@ユーザー名"
+              value={form.instagram}
+              onChange={(e) => setForm({ ...form, instagram: e.target.value })}
+            />
+            <Input
+              label="ChatWork"
+              placeholder="ChatWork ID"
+              value={form.chatwork}
+              onChange={(e) => setForm({ ...form, chatwork: e.target.value })}
+            />
+            <Input
+              label="LINE"
+              placeholder="LINE ID"
+              value={form.line}
+              onChange={(e) => setForm({ ...form, line: e.target.value })}
+            />
+            <Input
+              label="Slack"
+              placeholder="表示名 or メンバーID"
+              value={form.slack}
+              onChange={(e) => setForm({ ...form, slack: e.target.value })}
+            />
+            <Input
+              label="X"
+              placeholder="@ユーザー名"
+              value={form.x}
+              onChange={(e) => setForm({ ...form, x: e.target.value })}
+            />
+          </div>
+
+          <hr className="border-gray-200" />
+          <h3 className="text-sm font-semibold text-gray-700">主な連絡方法（複数選択可）</h3>
+          <div className="flex flex-wrap gap-3">
+            {CONTACT_METHOD_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={(form.preferredContactMethods || []).includes(opt.value)}
+                  onChange={() => toggleContactMethod(opt.value, form, setForm)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">{opt.label}</span>
+              </label>
+            ))}
           </div>
 
           <hr className="border-gray-200" />
