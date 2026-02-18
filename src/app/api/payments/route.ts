@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
-import { getPartnerAccess } from "@/lib/access-control";
+import { getPartnerAccess, getBusinessIdFilter } from "@/lib/access-control";
 import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
@@ -40,10 +40,18 @@ export async function GET(request: NextRequest) {
       where.categoryId = { in: ids };
     }
 
-    // パートナーの場合: 自分のパートナーIDに紐づく支払いのみ
+    // パートナーの場合: 自分のパートナーID + 担当事業に紐づく支払いのみ
     const access = await getPartnerAccess(user);
     if (access) {
       where.partnerId = access.partnerId;
+      const allowedBizIds = await getBusinessIdFilter(user, "payments");
+      if (allowedBizIds && allowedBizIds.length > 0) {
+        // businessId が担当事業、または businessId が null (事業未設定) のもの
+        where.OR = [
+          { businessId: { in: allowedBizIds } },
+          { businessId: null },
+        ];
+      }
     }
 
     const [payments, total] = await Promise.all([
@@ -64,7 +72,16 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const summaryBase: Record<string, unknown> = { deletedAt: null };
-    if (access) summaryBase.partnerId = access.partnerId;
+    if (access) {
+      summaryBase.partnerId = access.partnerId;
+      const allowedBizIds = await getBusinessIdFilter(user, "payments");
+      if (allowedBizIds && allowedBizIds.length > 0) {
+        summaryBase.OR = [
+          { businessId: { in: allowedBizIds } },
+          { businessId: null },
+        ];
+      }
+    }
 
     const [paidThisMonth, statusCounts] = await Promise.all([
       prisma.payment.aggregate({

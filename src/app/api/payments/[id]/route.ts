@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
-import { getPartnerAccess } from "@/lib/access-control";
+import { getPartnerAccess, getBusinessIdFilter } from "@/lib/access-control";
 import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -25,11 +25,20 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { id } = await context.params;
     const access = await getPartnerAccess(user);
 
+    // Business 単位フィルタ
+    const allowedBizIds = access ? await getBusinessIdFilter(user, "payments") : undefined;
+
     const payment = await prisma.payment.findFirst({
       where: {
         id,
         deletedAt: null,
         ...(access && { partnerId: access.partnerId }),
+        ...(allowedBizIds && allowedBizIds.length > 0 && {
+          OR: [
+            { businessId: { in: allowedBizIds } },
+            { businessId: null },
+          ],
+        }),
       },
       include: {
         partner: { select: { id: true, name: true, company: true, bankName: true, bankBranch: true, bankAccountType: true, bankAccountNumber: true, bankAccountHolder: true } },
@@ -73,12 +82,19 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params;
     const access = await getPartnerAccess(user);
+    const allowedBizIdsPut = access ? await getBusinessIdFilter(user, "payments") : undefined;
 
     const existing = await prisma.payment.findFirst({
       where: {
         id,
         deletedAt: null,
         ...(access && { partnerId: access.partnerId }),
+        ...(allowedBizIdsPut && allowedBizIdsPut.length > 0 && {
+          OR: [
+            { businessId: { in: allowedBizIdsPut } },
+            { businessId: null },
+          ],
+        }),
       },
     });
 
