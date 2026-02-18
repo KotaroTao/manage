@@ -181,6 +181,13 @@ export interface PartnerFormData {
   phone?: string;
   company?: string;
   specialty?: string;
+  facebook?: string;
+  instagram?: string;
+  chatwork?: string;
+  line?: string;
+  slack?: string;
+  x?: string;
+  preferredContactMethods?: string[];
   bankName?: string;
   bankBranch?: string;
   bankAccountType?: string;

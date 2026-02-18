@@ -18,6 +18,13 @@ interface PartnerDetail {
   email: string | null;
   phone: string | null;
   specialty: string | null;
+  facebook: string | null;
+  instagram: string | null;
+  chatwork: string | null;
+  line: string | null;
+  slack: string | null;
+  x: string | null;
+  preferredContactMethods: string[];
   contractType: string;
   rate: number | null;
   status: string;
@@ -54,6 +61,21 @@ interface Payment {
   note: string | null;
   createdAt: string;
 }
+
+const CONTACT_METHOD_OPTIONS = [
+  { value: 'EMAIL', label: 'メール' },
+  { value: 'PHONE', label: '電話' },
+  { value: 'FACEBOOK', label: 'Facebook' },
+  { value: 'INSTAGRAM', label: 'Instagram' },
+  { value: 'CHATWORK', label: 'ChatWork' },
+  { value: 'LINE', label: 'LINE' },
+  { value: 'SLACK', label: 'Slack' },
+  { value: 'X', label: 'X' },
+];
+
+const CONTACT_METHOD_LABELS: Record<string, string> = Object.fromEntries(
+  CONTACT_METHOD_OPTIONS.map((o) => [o.value, o.label])
+);
 
 const CONTRACT_TYPE_LABELS: Record<string, string> = {
   EMPLOYEE: '正社員',
@@ -128,6 +150,13 @@ export default function PartnerDetailPage() {
         phone: json.data.phone || '',
         company: json.data.company || '',
         specialty: json.data.specialty || '',
+        facebook: json.data.facebook || '',
+        instagram: json.data.instagram || '',
+        chatwork: json.data.chatwork || '',
+        line: json.data.line || '',
+        slack: json.data.slack || '',
+        x: json.data.x || '',
+        preferredContactMethods: json.data.preferredContactMethods || [],
         bankName: json.data.bankName || '',
         bankBranch: json.data.bankBranch || '',
         bankAccountType: json.data.bankAccountType || '普通',
@@ -203,6 +232,14 @@ export default function PartnerDetailPage() {
       setDeleting(false);
       setShowDeleteConfirm(false);
     }
+  };
+
+  const toggleContactMethod = (method: string) => {
+    const current = editForm.preferredContactMethods || [];
+    const updated = current.includes(method)
+      ? current.filter((m) => m !== method)
+      : [...current, method];
+    setEditForm({ ...editForm, preferredContactMethods: updated });
   };
 
   const maskString = (str: string | null) => {
@@ -281,7 +318,7 @@ export default function PartnerDetailPage() {
         </div>
       </div>
 
-      {/* Info & Bank cards */}
+      {/* Info cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Contact / Contract Info */}
         <Card>
@@ -308,6 +345,18 @@ export default function PartnerDetailPage() {
                   {partner.rate != null ? formatCurrency(partner.rate) : '-'}
                 </dd>
               </div>
+              {partner.preferredContactMethods && partner.preferredContactMethods.length > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-sm text-gray-500">主な連絡方法</dt>
+                  <dd className="flex flex-wrap gap-1 justify-end">
+                    {partner.preferredContactMethods.map((m) => (
+                      <Badge key={m} variant="info" size="sm">
+                        {CONTACT_METHOD_LABELS[m] || m}
+                      </Badge>
+                    ))}
+                  </dd>
+                </div>
+              )}
               {partner.note && (
                 <div className="pt-2 border-t border-gray-100">
                   <dt className="text-sm text-gray-500 mb-1">備考</dt>
@@ -367,6 +416,53 @@ export default function PartnerDetailPage() {
           </CardBody>
         </Card>
       </div>
+
+      {/* SNS / Contact Info */}
+      {(partner.facebook || partner.instagram || partner.chatwork || partner.line || partner.slack || partner.x) && (
+        <Card>
+          <CardHeader title="連絡先・SNS" />
+          <CardBody>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {partner.facebook && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 w-24">Facebook</span>
+                  <span className="text-gray-900">{partner.facebook}</span>
+                </div>
+              )}
+              {partner.instagram && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 w-24">Instagram</span>
+                  <span className="text-gray-900">{partner.instagram}</span>
+                </div>
+              )}
+              {partner.chatwork && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 w-24">ChatWork</span>
+                  <span className="text-gray-900">{partner.chatwork}</span>
+                </div>
+              )}
+              {partner.line && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 w-24">LINE</span>
+                  <span className="text-gray-900">{partner.line}</span>
+                </div>
+              )}
+              {partner.slack && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 w-24">Slack</span>
+                  <span className="text-gray-900">{partner.slack}</span>
+                </div>
+              )}
+              {partner.x && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 w-24">X</span>
+                  <span className="text-gray-900">{partner.x}</span>
+                </div>
+              )}
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       {/* Assigned Businesses */}
       <Card>
@@ -559,6 +655,63 @@ export default function PartnerDetailPage() {
               value={editForm.rate ?? ''}
               onChange={(e) => setEditForm({ ...editForm, rate: e.target.value ? Number(e.target.value) : undefined })}
             />
+          </div>
+
+          <hr className="border-gray-200" />
+          <h3 className="text-sm font-semibold text-gray-700">連絡先・SNS</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Facebook"
+              placeholder="ユーザー名 or URL"
+              value={editForm.facebook}
+              onChange={(e) => setEditForm({ ...editForm, facebook: e.target.value })}
+            />
+            <Input
+              label="Instagram"
+              placeholder="@ユーザー名"
+              value={editForm.instagram}
+              onChange={(e) => setEditForm({ ...editForm, instagram: e.target.value })}
+            />
+            <Input
+              label="ChatWork"
+              placeholder="ChatWork ID"
+              value={editForm.chatwork}
+              onChange={(e) => setEditForm({ ...editForm, chatwork: e.target.value })}
+            />
+            <Input
+              label="LINE"
+              placeholder="LINE ID"
+              value={editForm.line}
+              onChange={(e) => setEditForm({ ...editForm, line: e.target.value })}
+            />
+            <Input
+              label="Slack"
+              placeholder="表示名 or メンバーID"
+              value={editForm.slack}
+              onChange={(e) => setEditForm({ ...editForm, slack: e.target.value })}
+            />
+            <Input
+              label="X"
+              placeholder="@ユーザー名"
+              value={editForm.x}
+              onChange={(e) => setEditForm({ ...editForm, x: e.target.value })}
+            />
+          </div>
+
+          <hr className="border-gray-200" />
+          <h3 className="text-sm font-semibold text-gray-700">主な連絡方法（複数選択可）</h3>
+          <div className="flex flex-wrap gap-3">
+            {CONTACT_METHOD_OPTIONS.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={(editForm.preferredContactMethods || []).includes(opt.value)}
+                  onChange={() => toggleContactMethod(opt.value)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">{opt.label}</span>
+              </label>
+            ))}
           </div>
 
           <hr className="border-gray-200" />

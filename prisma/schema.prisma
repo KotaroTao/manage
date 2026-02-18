@@ -106,6 +106,13 @@ model Partner {
   phone             String?
   company           String?
   specialty         String?
+  facebook          String?
+  instagram         String?
+  chatwork          String?
+  line              String?
+  slack             String?
+  x                 String?
+  preferredContactMethods String[] @default([])
   bankName          String?
   bankBranch        String?
   bankAccountType   BankAccountType?
