@@ -165,7 +165,7 @@ async function main() {
       bankAccountType: "ORDINARY",
       bankAccountNumber: "1234567",
       bankAccountHolder: "フリーランス タロウ",
-      contractType: "MONTHLY",
+      contractType: "OUTSOURCING",
       rate: 400000,
     },
   });

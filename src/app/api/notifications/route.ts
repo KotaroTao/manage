@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       unreadCount,
     });
   } catch (error) {
-    console.error("Notifications GET error:", error);
+    logger.error("Notifications GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -112,7 +113,7 @@ export async function PUT(request: NextRequest) {
       { status: 400 },
     );
   } catch (error) {
-    console.error("Notifications PUT error:", error);
+    logger.error("Notifications PUT error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

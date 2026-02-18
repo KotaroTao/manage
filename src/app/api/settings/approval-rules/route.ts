@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -19,7 +20,7 @@ export async function GET() {
 
     return NextResponse.json({ data: rules });
   } catch (error) {
-    console.error("ApprovalRules GET error:", error);
+    logger.error("ApprovalRules GET error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: rule }, { status: 201 });
   } catch (error) {
-    console.error("ApprovalRule POST error:", error);
+    logger.error("ApprovalRule POST error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: tags });
   } catch (error) {
-    console.error("Tags GET error:", error);
+    logger.error("Tags GET error", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: tag }, { status: 201 });
   } catch (error) {
-    console.error("Tag POST error:", error);
+    logger.error("Tag POST error", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -134,7 +135,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ data: null, message: "Tag deleted" });
   } catch (error) {
-    console.error("Tag DELETE error:", error);
+    logger.error("Tag DELETE error", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

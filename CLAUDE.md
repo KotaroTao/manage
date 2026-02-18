@@ -11,9 +11,11 @@
 - **ORM**: Prisma v6 + PostgreSQL 17
 - **認証**: カスタムJWT (jose) + httpOnly Cookie (`auth_token`)
 - **CSS**: Tailwind CSS v4 (@tailwindcss/postcss)
-- **プロセス管理**: PM2 cluster mode (ポート8888)
-- **Webサーバー**: Nginx (SSL/HTTPS, Let's Encrypt)
-- **デプロイ**: GitHub Actions (mainブランチpush → 自動デプロイ)
+- **コンテナ**: Docker (multi-stage build, node:20-alpine)
+- **ログ**: 構造化JSON (`src/lib/logger.ts`) → Cloud Run Cloud Logging 連携
+- **プロセス管理**: PM2 cluster mode (ポート8888) ※VPS環境のみ
+- **Webサーバー**: Nginx (SSL/HTTPS, Let's Encrypt) ※VPS環境のみ
+- **デプロイ**: GitHub Actions → VPS (main push), Cloud Build → Cloud Run
 
 ## 重要: Prisma v6 制約
 - Prisma v7 は `url` 設定の破壊的変更あり。v6を使うこと
@@ -30,6 +32,8 @@ npx tsx prisma/seed.ts # シードデータ投入
 ```
 
 ## デプロイ
+
+### VPS デプロイ (本番: manage.tao-dx.com)
 mainブランチにpushすれば GitHub Actions で自動デプロイされる。
 手動デプロイが必要な場合:
 ```bash
@@ -40,12 +44,38 @@ npm run build
 pm2 restart manage
 ```
 
+### Cloud Run デプロイ (GCP)
+Cloud Shell または gcloud CLI から:
+```bash
+gcloud run deploy manage --source . --region asia-northeast1
+```
+Cloud Build トリガー設定済み (`cloudbuild.yaml`): mainブランチpush → 自動ビルド&デプロイ
+
+## GCP Cloud Run 情報
+- **GCPプロジェクト**: `manage-487702`
+- **リージョン**: `asia-northeast1` (東京)
+- **サービス名**: `manage`
+- **URL**: https://manage-187944751364.asia-northeast1.run.app
+- **ポート**: 8080 (Dockerfile で設定)
+- **スペック**: CPU 1, メモリ 1Gi, min 0 / max 5 インスタンス
+- **Dockerfile**: `Dockerfile` (multi-stage: deps → builder → runner)
+- **Cloud Build設定**: `cloudbuild.yaml`
+- **Artifact Registry**: `asia-northeast1-docker.pkg.dev/manage-487702/manage/manage`
+- **シークレット (Secret Manager)**:
+  - `manage-database-url` → `DATABASE_URL` (VPS PostgreSQL への外部接続URL)
+  - `manage-jwt-secret` → `JWT_SECRET`
+- **DB接続**: `postgresql://manage_user:qkRcxuGYu7jQZ1hz442pEwYV8h0wLG@210.131.223.161:5432/manage_db`
+  - VPS PostgreSQL に外部接続 (5432ポート開放済み, `pg_hba.conf` で `0.0.0.0/0` 許可)
+- **ログ確認**: `gcloud run services logs read manage --region asia-northeast1 --limit 30`
+
 ## VPS デプロイ情報
 - アプリパス: `/var/www/manage`
 - ポート: **8888** (dental-appが3000を使用中のため)
 - PM2設定: `deploy/ecosystem.config.js`
 - Nginx設定: `/etc/nginx/sites-available/manage.tao-dx.com`
-- DB: `postgresql://manage_user:qkRcxuGYu7jQZ1hz442pEwYV8h0wLG@localhost:5432/manage_db`
+- DB (ローカル接続): `postgresql://manage_user:qkRcxuGYu7jQZ1hz442pEwYV8h0wLG@localhost:5432/manage_db`
+- DB (外部接続): `postgresql://manage_user:qkRcxuGYu7jQZ1hz442pEwYV8h0wLG@210.131.223.161:5432/manage_db`
+- PostgreSQL外部接続: 5432ポート開放済み (`ufw allow 5432/tcp`, `listen_addresses = '*'`)
 - SSL証明書: `/etc/letsencrypt/live/manage.tao-dx.com/` (2026-05-10期限)
 
 ## 認証システム
@@ -97,11 +127,18 @@ src/
     audit.ts         # 監査ログ・データバージョニング
     security.ts      # レート制限, RBAC, ROLE_HIERARCHY
     workflow-engine.ts # ワークフローエンジン
+    logger.ts        # 構造化JSONログ (Cloud Run / Cloud Logging 対応)
     prisma.ts        # Prismaクライアント
     utils.ts         # ユーティリティ
 prisma/
   schema.prisma      # 24テーブル定義
   seed.ts            # シードデータ
+deploy/
+  ecosystem.config.js # PM2設定 (PORT: 8888)
+  nginx.conf         # Nginx設定テンプレート
+Dockerfile           # Cloud Run 用マルチステージビルド
+.dockerignore        # Docker ビルド除外設定
+cloudbuild.yaml      # Cloud Build → Cloud Run 自動デプロイ設定
 deploy/
   ecosystem.config.js # PM2設定 (PORT: 8888)
   nginx.conf         # Nginx設定テンプレート
@@ -119,6 +156,18 @@ scripts/
 ## RBAC ロール階層
 ADMIN > MANAGER > MEMBER > PARTNER
 
+## ログシステム
+- **ユーティリティ**: `src/lib/logger.ts` (info / warn / error)
+- **形式**: JSON構造化ログ → Cloud Run の Cloud Logging で自動パース
+- **記録情報**: timestamp, level, message, method, path, IP, user-agent, error (name/message/stack), meta
+- **適用範囲**: 全46 APIルート + ミドルウェア
+- **使い方**:
+```typescript
+import { logger } from "@/lib/logger";
+logger.error("Login failed", error, request);
+logger.info("User created", request, { userId: "abc" });
+```
+
 ## セキュリティ対策
 - 不変監査ログ (PostgreSQLトリガーでUPDATE/DELETE禁止)
 - データバージョニング (全変更のスナップショット)
@@ -131,3 +180,6 @@ ADMIN > MANAGER > MEMBER > PARTNER
 - VPS上の他アプリ: dental-app(3000), mieru-clinic, zoom-backend, zoom-dashboard
 - git pull時は `--rebase` フラグが必要 (divergent branches対策)
 - Next.js 16で `middleware` が deprecated → `proxy` への移行が将来必要
+- Cloud Run はコールドスタート時にDB接続に時間がかかる場合あり (min-instances=0)
+- VPS PostgreSQL 5432ポートが外部公開済み (Cloud Run接続用、パスワード認証で保護)
+- Cloud Run の Cookie `secure: true` (NODE_ENV=production) → HTTPS必須

@@ -111,7 +111,7 @@ model Partner {
   bankAccountType   BankAccountType?
   bankAccountNumber String?
   bankAccountHolder String?
-  contractType      ContractType @default(MONTHLY)
+  contractType      ContractType @default(OUTSOURCING)
   rate              Int?
   status            PartnerStatus @default(ACTIVE)
   note              String?
@@ -135,9 +135,13 @@ enum BankAccountType {
 }
 
 enum ContractType {
-  HOURLY
-  MONTHLY
-  PROJECT
+  EMPLOYEE
+  CONTRACT_EMPLOYEE
+  PART_TIME
+  OUTSOURCING
+  DISPATCH
+  ADVISOR
+  OTHER
 }
 
 enum PartnerStatus {

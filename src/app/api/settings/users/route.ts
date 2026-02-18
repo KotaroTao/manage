@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 import bcrypt from "bcryptjs";
 
 export async function GET(request: NextRequest) {
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: users });
   } catch (error) {
-    console.error("Users GET error:", error);
+    logger.error("Users GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: newUser }, { status: 201 });
   } catch (error) {
-    console.error("User POST error:", error);
+    logger.error("User POST error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -31,12 +32,12 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: budget });
   } catch (error) {
-    console.error("Budget PUT error:", error);
+    logger.error("Budget PUT error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -50,7 +51,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     await prisma.budget.delete({ where: { id } });
     return NextResponse.json({ data: null, message: "削除しました" });
   } catch (error) {
-    console.error("Budget DELETE error:", error);
+    logger.error("Budget DELETE error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: budgets });
   } catch (error) {
-    console.error("Budgets GET error:", error);
+    logger.error("Budgets GET error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: budget }, { status: 201 });
   } catch (error) {
-    console.error("Budget POST error:", error);
+    logger.error("Budget POST error:", error, request);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

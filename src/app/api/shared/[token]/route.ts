@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -119,7 +120,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error("Shared page GET error:", error);
+    logger.error("Shared page GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

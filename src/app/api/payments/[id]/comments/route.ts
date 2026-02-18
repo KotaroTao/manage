@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { getPartnerAccess } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: comments });
   } catch (error) {
-    console.error("PaymentComments GET error:", error);
+    logger.error("PaymentComments GET error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: comment }, { status: 201 });
   } catch (error) {
-    console.error("PaymentComment POST error:", error);
+    logger.error("PaymentComment POST error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

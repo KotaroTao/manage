@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { getBusinessIdFilter } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -166,7 +167,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Reports error:", error);
+    logger.error("Reports error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

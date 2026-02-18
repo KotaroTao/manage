@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ["PENDING"],
@@ -107,7 +108,7 @@ export async function PUT(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Payment batch PUT error:", error);
+    logger.error("Payment batch PUT error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

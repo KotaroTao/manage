@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog, createDataVersion } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: notes });
   } catch (error) {
-    console.error("ActivityNotes GET error:", error);
+    logger.error("ActivityNotes GET error", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: note }, { status: 201 });
   } catch (error) {
-    console.error("ActivityNote POST error:", error);
+    logger.error("ActivityNote POST error", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

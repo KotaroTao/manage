@@ -37,14 +37,22 @@ const STATUS_OPTIONS = [
 
 const CONTRACT_TYPE_OPTIONS = [
   { label: 'すべて', value: '' },
-  { label: '業務委託', value: 'CONTRACT' },
+  { label: '正社員', value: 'EMPLOYEE' },
+  { label: '契約社員', value: 'CONTRACT_EMPLOYEE' },
+  { label: 'パート・アルバイト', value: 'PART_TIME' },
+  { label: '業務委託', value: 'OUTSOURCING' },
   { label: '派遣', value: 'DISPATCH' },
+  { label: '顧問', value: 'ADVISOR' },
   { label: 'その他', value: 'OTHER' },
 ];
 
 const CONTRACT_TYPE_LABELS: Record<string, string> = {
-  CONTRACT: '業務委託',
+  EMPLOYEE: '正社員',
+  CONTRACT_EMPLOYEE: '契約社員',
+  PART_TIME: 'パート・アルバイト',
+  OUTSOURCING: '業務委託',
   DISPATCH: '派遣',
+  ADVISOR: '顧問',
   OTHER: 'その他',
 };
 
@@ -84,7 +92,7 @@ export default function PartnersPage() {
     bankAccountType: '普通',
     bankAccountNumber: '',
     bankAccountHolder: '',
-    contractType: 'CONTRACT',
+    contractType: 'OUTSOURCING',
     rate: undefined,
     note: '',
   });
@@ -149,7 +157,7 @@ export default function PartnersPage() {
         bankAccountType: '普通',
         bankAccountNumber: '',
         bankAccountHolder: '',
-        contractType: 'CONTRACT',
+        contractType: 'OUTSOURCING',
         rate: undefined,
         note: '',
       });
@@ -188,7 +196,7 @@ export default function PartnersPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => exportToCsv('partners', ['パートナー名', '会社名', 'メール', '電話番号', '専門分野', '契約形態', '単価', 'ステータス'], partners.map((p) => [p.name, p.company, p.email, p.phone, p.specialty, p.contractType === 'CONTRACT' ? '業務委託' : p.contractType === 'DISPATCH' ? '派遣' : 'その他', p.rate, p.status === 'ACTIVE' ? '有効' : '無効']))}
+            onClick={() => exportToCsv('partners', ['パートナー名', '会社名', 'メール', '電話番号', '専門分野', '契約形態', '単価', 'ステータス'], partners.map((p) => [p.name, p.company, p.email, p.phone, p.specialty, CONTRACT_TYPE_LABELS[p.contractType] || p.contractType, p.rate, p.status === 'ACTIVE' ? '有効' : '無効']))}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -410,8 +418,12 @@ export default function PartnersPage() {
               label="契約形態"
               required
               options={[
-                { label: '業務委託', value: 'CONTRACT' },
+                { label: '正社員', value: 'EMPLOYEE' },
+                { label: '契約社員', value: 'CONTRACT_EMPLOYEE' },
+                { label: 'パート・アルバイト', value: 'PART_TIME' },
+                { label: '業務委託', value: 'OUTSOURCING' },
                 { label: '派遣', value: 'DISPATCH' },
+                { label: '顧問', value: 'ADVISOR' },
                 { label: 'その他', value: 'OTHER' },
               ]}
               value={form.contractType}

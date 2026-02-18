@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { writeAuditLog } from "@/lib/audit";
 import { getBusinessIdFilter, canWrite } from "@/lib/access-control";
+import { logger } from "@/lib/logger";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -134,7 +135,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ data: updated });
   } catch (error) {
-    console.error("WorkflowStep PUT error:", error);
+    logger.error("WorkflowStep PUT error:", error, request);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
