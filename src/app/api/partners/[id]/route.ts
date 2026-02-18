@@ -35,6 +35,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Partner not found" }, { status: 404 });
     }
 
+    // PARTNER ロールは自分のパートナー情報のみアクセス可
+    if (user.role === "PARTNER" && partner.userId !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     // Exclude bank fields unless user is ADMIN or MANAGER
     if (user.role !== "ADMIN" && user.role !== "MANAGER") {
       const { bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder, ...safePartner } = partner;
@@ -68,6 +73,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Partner not found" }, { status: 404 });
     }
 
+    // PARTNER ロールはパートナー編集不可（管理者・マネージャーのみ）
+    if (user.role === "PARTNER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       name,
@@ -91,6 +101,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       rate,
       status,
       note,
+      businessAssignments,
     } = body;
 
     const updated = await prisma.partner.update({
@@ -120,6 +131,48 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       },
     });
 
+    // 担当事業の更新 (businessAssignments が渡された場合)
+    if (Array.isArray(businessAssignments)) {
+      // 現在の PartnerBusiness を取得
+      const currentPBs = await prisma.partnerBusiness.findMany({
+        where: { partnerId: id },
+      });
+
+      const incomingBizIds = new Set(
+        businessAssignments.map((a: { businessId: string }) => a.businessId),
+      );
+      const currentBizIds = new Set(currentPBs.map((pb) => pb.businessId));
+
+      // 削除: 送信データに含まれないもの
+      const toDelete = currentPBs
+        .filter((pb) => !incomingBizIds.has(pb.businessId))
+        .map((pb) => pb.id);
+
+      // 追加/更新
+      const upserts = businessAssignments.map(
+        (a: { businessId: string; role?: string }) =>
+          prisma.partnerBusiness.upsert({
+            where: {
+              partnerId_businessId: { partnerId: id, businessId: a.businessId },
+            },
+            update: { role: a.role || null, isActive: true },
+            create: {
+              partnerId: id,
+              businessId: a.businessId,
+              role: a.role || null,
+              isActive: true,
+            },
+          }),
+      );
+
+      await prisma.$transaction([
+        ...(toDelete.length > 0
+          ? [prisma.partnerBusiness.deleteMany({ where: { id: { in: toDelete } } })]
+          : []),
+        ...upserts,
+      ]);
+    }
+
     await writeAuditLog({
       userId: user.id,
       action: "UPDATE",
@@ -138,7 +191,19 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       changeType: "UPDATE",
     });
 
-    return NextResponse.json({ data: updated });
+    // 更新後のデータを partnerBusinesses 付きで返す
+    const result = await prisma.partner.findUnique({
+      where: { id },
+      include: {
+        partnerBusinesses: {
+          include: {
+            business: { select: { id: true, name: true, code: true } },
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({ data: result });
   } catch (error) {
     logger.error("Partner PUT error", error, request);
     return NextResponse.json(
@@ -156,6 +221,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     const { id } = await context.params;
+
+    // PARTNER ロールは削除不可
+    if (user.role === "PARTNER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const existing = await prisma.partner.findFirst({
       where: { id, deletedAt: null },

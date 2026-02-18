@@ -152,6 +152,7 @@ scripts/
 - 管理者: admin@example.com / admin123
 - マネージャー: manager@example.com / manager123
 - メンバー: member@example.com / member123
+- パートナー: partner@example.com / partner123
 
 ## RBAC ロール階層
 ADMIN > MANAGER > MEMBER > PARTNER
@@ -183,3 +184,38 @@ logger.info("User created", request, { userId: "abc" });
 - Cloud Run はコールドスタート時にDB接続に時間がかかる場合あり (min-instances=0)
 - VPS PostgreSQL 5432ポートが外部公開済み (Cloud Run接続用、パスワード認証で保護)
 - Cloud Run の Cookie `secure: true` (NODE_ENV=production) → HTTPS必須
+
+## パートナー×担当事業アクセス制御 実装計画
+
+### 既存インフラ（実装済み）
+- `PartnerBusiness` モデル（permissions[], canEdit, isActive）
+- `getPartnerAccess()` / `getBusinessIdFilter()` / `canEditInBusiness()`（`src/lib/access-control.ts`）
+- サイドバー `hideForPartner` + `hasContentAccess` フィルタ
+- `/api/auth/me` が partnerAccess を返却
+- 顧客API / タスクAPI / 事業API にBusiness単位フィルタ済み
+
+### P0: 必須（コア機能）
+1. **パートナー編集で担当事業選択UI** — 編集モーダルに事業チェックボックス + 役割入力
+   - `PUT /api/partners/[id]` に `businessAssignments[]` パラメータ追加
+   - PartnerBusiness の upsert/delete をトランザクションで処理
+2. **Partner-User紐付け** — Partner に PARTNER ロール User を作成・紐付け
+   - seed.ts にパートナーユーザー追加 (partner@example.com / partner123)
+   - Partner.userId を設定
+3. **ミドルウェア PARTNER 制限見直し** + API アクセス制御
+   - `/partners` のブロック維持、PARTNERは自分のプロフィールのみ閲覧可能に
+   - `/api/partners` GET: PARTNER は自分のみ返却
+   - `/api/partners/[id]` GET: PARTNER は自分のIDのみ許可
+
+### P1: データ漏洩防止
+4. ワークフローAPI にBusiness単位フィルタ追加
+5. 支払いAPI を Business 単位フィルタに強化
+6. `/api/partners` 一覧: PARTNER は自分だけ返す
+7. `/api/partners/[id]` 詳細: PARTNER は自分のIDのみアクセス可
+
+### P2: UX改善
+8. ダッシュボードの PARTNER 対応（担当事業のみのサマリー）
+9. 顧客UI の canEdit 制御（読み取り専用）
+
+### P3: セキュリティ強化
+10. PartnerBusiness.canEdit の API 実装
+11. 監査ログの PARTNER 操作記録強化

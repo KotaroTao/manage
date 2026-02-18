@@ -43,9 +43,20 @@ interface PartnerBusiness {
   id: string;
   business: { id: string; name: string; colorCode: string };
   role: string | null;
-  rate: number | null;
-  startDate: string | null;
-  endDate: string | null;
+  isActive: boolean;
+  permissions: string[];
+  canEdit: boolean;
+}
+
+interface BusinessOption {
+  id: string;
+  name: string;
+  colorCode: string;
+}
+
+interface BusinessAssignment {
+  businessId: string;
+  role: string;
 }
 
 interface Payment {
@@ -136,6 +147,19 @@ export default function PartnerDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Business assignments
+  const [allBusinesses, setAllBusinesses] = useState<BusinessOption[]>([]);
+  const [businessAssignments, setBusinessAssignments] = useState<BusinessAssignment[]>([]);
+
+  useEffect(() => {
+    fetch('/api/businesses')
+      .then((res) => res.ok ? res.json() : null)
+      .then((json) => {
+        if (json?.data) setAllBusinesses(json.data.map((b: { id: string; name: string; colorCode: string }) => ({ id: b.id, name: b.name, colorCode: b.colorCode })));
+      })
+      .catch(() => {});
+  }, []);
+
   const fetchPartner = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -166,6 +190,15 @@ export default function PartnerDetailPage() {
         rate: json.data.rate ?? undefined,
         note: json.data.note || '',
       });
+      // 担当事業の初期値設定
+      if (json.data.partnerBusinesses) {
+        setBusinessAssignments(
+          json.data.partnerBusinesses.map((pb: PartnerBusiness) => ({
+            businessId: pb.business.id,
+            role: pb.role || '',
+          }))
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '不明なエラー');
     } finally {
@@ -206,7 +239,7 @@ export default function PartnerDetailPage() {
       const res = await fetch(`/api/partners/${partnerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({ ...editForm, businessAssignments }),
       });
       if (!res.ok) throw new Error(await getApiError(res, '更新に失敗しました'));
       showToast('パートナー情報を更新しました', 'success');
@@ -487,10 +520,6 @@ export default function PartnerDetailPage() {
                       <Badge variant="default" size="sm">{pb.role}</Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    {pb.rate != null && <span>{formatCurrency(pb.rate)}</span>}
-                    {pb.startDate && <span>{formatDate(pb.startDate)} 〜</span>}
-                  </div>
                 </div>
               ))}
             </div>
@@ -746,6 +775,54 @@ export default function PartnerDetailPage() {
               value={editForm.bankAccountHolder}
               onChange={(e) => setEditForm({ ...editForm, bankAccountHolder: e.target.value })}
             />
+          </div>
+
+          <hr className="border-gray-200" />
+          <h3 className="text-sm font-semibold text-gray-700">担当事業</h3>
+          <div className="space-y-2">
+            {allBusinesses.map((biz) => {
+              const assignment = businessAssignments.find((a) => a.businessId === biz.id);
+              const isAssigned = !!assignment;
+              return (
+                <div key={biz.id} className="flex items-center gap-3 p-2 rounded-lg border border-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={isAssigned}
+                    onChange={() => {
+                      if (isAssigned) {
+                        setBusinessAssignments(businessAssignments.filter((a) => a.businessId !== biz.id));
+                      } else {
+                        setBusinessAssignments([...businessAssignments, { businessId: biz.id, role: '' }]);
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: biz.colorCode }}
+                  />
+                  <span className="text-sm font-medium text-gray-900 min-w-[120px]">{biz.name}</span>
+                  {isAssigned && (
+                    <Input
+                      placeholder="役割（例: 広告運用担当）"
+                      value={assignment.role}
+                      onChange={(e) => {
+                        setBusinessAssignments(
+                          businessAssignments.map((a) =>
+                            a.businessId === biz.id ? { ...a, role: e.target.value } : a
+                          )
+                        );
+                      }}
+                      inputSize="sm"
+                      className="flex-1"
+                    />
+                  )}
+                </div>
+              );
+            })}
+            {allBusinesses.length === 0 && (
+              <p className="text-sm text-gray-500">事業データがありません</p>
+            )}
           </div>
 
           <hr className="border-gray-200" />

@@ -153,6 +153,19 @@ async function main() {
   ]);
   console.log(`✅ 顧客×事業 ${cbs.length}件 作成`);
 
+  // パートナーユーザー
+  const partnerPassword = await bcrypt.hash("partner123", 12);
+  const partnerUser = await prisma.user.upsert({
+    where: { email: "partner@example.com" },
+    update: {},
+    create: {
+      email: "partner@example.com",
+      name: "フリーランス太郎",
+      passwordHash: partnerPassword,
+      role: Role.PARTNER,
+    },
+  });
+
   // パートナーデータ
   const partner = await prisma.partner.create({
     data: {
@@ -167,12 +180,20 @@ async function main() {
       bankAccountHolder: "フリーランス タロウ",
       contractType: "OUTSOURCING",
       rate: 400000,
+      userId: partnerUser.id,
     },
   });
   await prisma.partnerBusiness.create({
-    data: { partnerId: partner.id, businessId: businesses[0].id, role: "広告運用担当" },
+    data: {
+      partnerId: partner.id,
+      businessId: businesses[0].id,
+      role: "広告運用担当",
+      isActive: true,
+      permissions: ["customers", "tasks", "payments"],
+      canEdit: true,
+    },
   });
-  console.log("✅ パートナー 1件 作成");
+  console.log("✅ パートナー 1件 作成 (ユーザー紐付け済)");
 
   // 業務フローテンプレート
   const template = await prisma.workflowTemplate.create({

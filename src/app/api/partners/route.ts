@@ -22,6 +22,11 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
     };
 
+    // PARTNER ロールは自分自身のパートナー情報のみ
+    if (user.role === "PARTNER") {
+      where.userId = user.id;
+    }
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -106,6 +111,11 @@ export async function POST(request: NextRequest) {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // PARTNER ロールは作成不可
+    if (user.role === "PARTNER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
