@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
         bankAccountType: bankAccountType || null,
         bankAccountNumber: bankAccountNumber || null,
         bankAccountHolder: bankAccountHolder || null,
-        contractType: contractType || "MONTHLY",
+        contractType: contractType || "OUTSOURCING",
         rate: rate ?? null,
         status: status || "ACTIVE",
         note: note || null,

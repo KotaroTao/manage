@@ -56,8 +56,12 @@ interface Payment {
 }
 
 const CONTRACT_TYPE_LABELS: Record<string, string> = {
-  CONTRACT: '業務委託',
+  EMPLOYEE: '正社員',
+  CONTRACT_EMPLOYEE: '契約社員',
+  PART_TIME: 'パート・アルバイト',
+  OUTSOURCING: '業務委託',
   DISPATCH: '派遣',
+  ADVISOR: '顧問',
   OTHER: 'その他',
 };
 
@@ -105,7 +109,7 @@ export default function PartnerDetailPage() {
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState<PartnerFormData>({
     name: '',
-    contractType: 'CONTRACT',
+    contractType: 'OUTSOURCING',
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -538,8 +542,12 @@ export default function PartnerDetailPage() {
               label="契約形態"
               required
               options={[
-                { label: '業務委託', value: 'CONTRACT' },
+                { label: '正社員', value: 'EMPLOYEE' },
+                { label: '契約社員', value: 'CONTRACT_EMPLOYEE' },
+                { label: 'パート・アルバイト', value: 'PART_TIME' },
+                { label: '業務委託', value: 'OUTSOURCING' },
                 { label: '派遣', value: 'DISPATCH' },
+                { label: '顧問', value: 'ADVISOR' },
                 { label: 'その他', value: 'OTHER' },
               ]}
               value={editForm.contractType}
